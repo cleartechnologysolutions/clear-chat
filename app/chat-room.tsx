@@ -70,11 +70,13 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
   const loadedSlugRef = useRef("");
   const lastSeenIdRef = useRef(0);
   const initializedRef = useRef(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const latestId = messages.at(-1)?.id || 0;
     setLastSeenId(latestId);
     lastSeenIdRef.current = latestId;
+    messagesEndRef.current?.scrollIntoView({ block: "end" });
   }, [messages]);
 
   useEffect(() => {
@@ -240,9 +242,9 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
   }
 
   return (
-    <main className="min-h-screen bg-[#07111d] px-4 py-5 text-slate-50 sm:px-6 lg:px-8">
-      <div className="mx-auto flex min-h-[calc(100vh-2.5rem)] max-w-7xl flex-col gap-5">
-        <header className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-white/10 bg-white/[.04] px-4 py-3">
+    <main className="h-screen overflow-hidden bg-[#07111d] px-4 py-5 text-slate-50 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-full min-h-0 max-w-7xl flex-col gap-5">
+        <header className="shrink-0 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-white/10 bg-white/[.04] px-4 py-3">
           <div className="flex items-center gap-3">
             <div className="grid h-11 w-11 place-items-center rounded-lg border border-white/60 bg-cyan-400/15 text-sm font-black tracking-[.08em]">
               CTS
@@ -261,8 +263,8 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
           </button>
         </header>
 
-        <section className="grid flex-1 gap-5 lg:grid-cols-[360px_1fr]">
-          <aside className="rounded-lg border border-white/10 bg-white/[.05] p-5 shadow-2xl shadow-black/25">
+        <section className="grid min-h-0 flex-1 gap-5 lg:grid-cols-[360px_1fr]">
+          <aside className="min-h-0 overflow-y-auto rounded-lg border border-white/10 bg-white/[.05] p-5 shadow-2xl shadow-black/25">
             <h1 className="text-3xl font-black tracking-tight">Chat Room</h1>
             <p className="mt-3 text-sm leading-6 text-slate-300">
               Give someone a room URL like /abcd. Anyone with the link can join and send short messages.
@@ -336,8 +338,8 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
             </div>
           </aside>
 
-          <section className="flex min-h-[620px] flex-col rounded-lg border border-white/10 bg-white/[.05] shadow-2xl shadow-black/25">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 p-4">
+          <section className="flex min-h-0 flex-col rounded-lg border border-white/10 bg-white/[.05] shadow-2xl shadow-black/25">
+            <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 border-b border-white/10 p-4">
               <div>
                 <p className="text-sm font-bold uppercase tracking-[.14em] text-cyan-200">
                   /{loadedSlug || normalizedSlug || "new"}
@@ -346,8 +348,9 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
               </div>
             </div>
 
-            <div className="flex min-h-[460px] flex-1 flex-col-reverse gap-3 overflow-y-auto bg-slate-950/55 p-5">
-              {[...messages].reverse().map((message) => (
+            <div className="min-h-0 flex-1 overflow-y-auto bg-slate-950/55 p-5">
+              <div className="flex min-h-full flex-col justify-end gap-3">
+              {messages.map((message) => (
                 <article key={message.id} className="rounded-lg border border-white/10 bg-white/[.04] p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="font-bold text-cyan-100">{message.displayName}</p>
@@ -365,9 +368,11 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
                   No messages yet. Send the first one.
                 </div>
               ) : null}
+              <div ref={messagesEndRef} />
+              </div>
             </div>
 
-            <form onSubmit={sendMessage} className="relative flex gap-3 border-t border-white/10 p-4">
+            <form onSubmit={sendMessage} className="relative flex shrink-0 gap-3 border-t border-white/10 p-4">
               <div className="relative min-w-0 flex-1">
                 {showEmojiPicker ? (
                   <div className="absolute bottom-14 left-0 z-10 grid w-full max-w-sm grid-cols-5 gap-2 rounded-lg border border-white/15 bg-slate-950 p-3 shadow-2xl shadow-black/40">
