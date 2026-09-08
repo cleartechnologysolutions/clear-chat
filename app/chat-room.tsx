@@ -33,6 +33,29 @@ type MessagesResponse = {
   error?: string;
 };
 
+const EMOJIS = [
+  "😀",
+  "😂",
+  "👍",
+  "👎",
+  "❤️",
+  "🔥",
+  "✅",
+  "❌",
+  "👀",
+  "😭",
+  "🤦",
+  "🤷",
+  "🎉",
+  "🙏",
+  "💯",
+  "😬",
+  "😎",
+  "🤔",
+  "🙄",
+  "🚀",
+];
+
 export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
   const [slug, setSlug] = useState(initialSlug || "");
   const [loadedSlug, setLoadedSlug] = useState("");
@@ -42,6 +65,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
   const [status, setStatus] = useState("Enter a room or make a new one.");
   const [notifyOnMessage, setNotifyOnMessage] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [lastSeenId, setLastSeenId] = useState(0);
   const loadedSlugRef = useRef("");
   const lastSeenIdRef = useRef(0);
@@ -210,6 +234,11 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
     void loadMessages(nextSlug);
   }
 
+  function addEmoji(emoji: string) {
+    setDraft((current) => `${current}${emoji}`);
+    setShowEmojiPicker(false);
+  }
+
   return (
     <main className="min-h-screen bg-[#07111d] px-4 py-5 text-slate-50 sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-2.5rem)] max-w-7xl flex-col gap-5">
@@ -338,14 +367,39 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
               ) : null}
             </div>
 
-            <form onSubmit={sendMessage} className="flex gap-3 border-t border-white/10 p-4">
-              <input
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                placeholder="Type a message..."
-                className="h-12 min-w-0 flex-1 rounded-md border border-white/15 bg-slate-950/70 px-3 text-base text-white outline-none ring-cyan-300/40 focus:ring-4"
-                maxLength={2000}
-              />
+            <form onSubmit={sendMessage} className="relative flex gap-3 border-t border-white/10 p-4">
+              <div className="relative min-w-0 flex-1">
+                {showEmojiPicker ? (
+                  <div className="absolute bottom-14 left-0 z-10 grid w-full max-w-sm grid-cols-5 gap-2 rounded-lg border border-white/15 bg-slate-950 p-3 shadow-2xl shadow-black/40">
+                    {EMOJIS.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => addEmoji(emoji)}
+                        className="grid h-10 place-items-center rounded-md text-xl hover:bg-white/10"
+                        aria-label={`Add emoji ${emoji}`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <input
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  placeholder="Type a message..."
+                  className="h-12 w-full rounded-md border border-white/15 bg-slate-950/70 px-3 text-base text-white outline-none ring-cyan-300/40 focus:ring-4"
+                  maxLength={2000}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEmojiPicker((current) => !current)}
+                className="h-12 rounded-md border border-white/15 px-4 text-xl text-slate-100 hover:bg-white/10"
+                aria-label="Open emoji picker"
+              >
+                😀
+              </button>
               <button
                 type="submit"
                 disabled={isSending || !draft.trim()}
