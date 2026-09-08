@@ -21,6 +21,11 @@ type AdminResponse = {
   error?: string;
 };
 
+type AdminActionResponse = {
+  ok?: boolean;
+  error?: string;
+};
+
 export function AdminMessages() {
   const [password, setPassword] = useState("");
   const [rooms, setRooms] = useState<AdminRoom[]>([]);
@@ -65,6 +70,44 @@ export function AdminMessages() {
       setStatus("Loaded.");
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Admin load failed.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function runAdminAction(action: "cleanup-old" | "delete-room") {
+    if (action === "delete-room" && !activeRoom) return;
+
+    const roomSlug = activeRoom?.roomSlug || "";
+    const confirmed =
+      action === "cleanup-old"
+        ? window.confirm("Delete all chat messages older than 30 days?")
+        : window.confirm(`Delete every message in /${roomSlug}?`);
+
+    if (!confirmed) return;
+
+    setIsLoading(true);
+    setStatus(action === "cleanup-old" ? "Cleaning old messages..." : `Deleting /${roomSlug}...`);
+
+    try {
+      const response = await fetch("/api/admin/messages", {
+        method: "DELETE",
+        cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${password}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(
+          action === "cleanup-old" ? { action } : { action, roomSlug }
+        ),
+      });
+      const data = (await response.json()) as AdminActionResponse;
+      if (!response.ok) throw new Error(data.error || "Admin action failed.");
+
+      setStatus(action === "cleanup-old" ? "Old messages cleaned." : `Deleted /${roomSlug}.`);
+      await loadMessages();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Admin action failed.");
     } finally {
       setIsLoading(false);
     }
@@ -122,6 +165,25 @@ export function AdminMessages() {
               <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Summary</p>
               <p className="mt-2 text-sm text-slate-200">{rooms.length} rooms</p>
               <p className="mt-1 text-sm text-slate-400">{totalMessages} recent messages</p>
+            </div>
+
+            <div className="mt-3 space-y-2">
+              <button
+                type="button"
+                onClick={() => runAdminAction("cleanup-old")}
+                disabled={!hasLoaded || isLoading}
+                className="h-11 w-full rounded-md border border-white/15 px-4 text-sm font-bold text-slate-100 hover:bg-white/10 disabled:opacity-50"
+              >
+                Clean old messages
+              </button>
+              <button
+                type="button"
+                onClick={() => runAdminAction("delete-room")}
+                disabled={!activeRoom || isLoading}
+                className="h-11 w-full rounded-md border border-red-300/35 bg-red-500/10 px-4 text-sm font-bold text-red-100 hover:bg-red-500/20 disabled:opacity-50"
+              >
+                Delete selected room
+              </button>
             </div>
 
             <p className="mt-5 text-sm text-slate-300">

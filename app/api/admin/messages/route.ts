@@ -1,4 +1,4 @@
-import { desc } from "drizzle-orm";
+import { desc, eq, lt } from "drizzle-orm";
 import { env } from "cloudflare:workers";
 import { getDb } from "../../../../db";
 import { messages } from "../../../../db/schema";
@@ -22,6 +22,16 @@ function routeError(error: unknown) {
     return "Storage is not ready yet. Create the messages table in D1 first.";
   }
   return message;
+}
+
+function normalizeSlug(value: unknown) {
+  return typeof value === "string"
+    ? value
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, "")
+        .slice(0, 32)
+    : "";
 }
 
 export async function GET(request: Request) {
@@ -76,6 +86,40 @@ export async function GET(request: Request) {
         messages: room.messages.reverse(),
       })),
     });
+  } catch (error) {
+    return Response.json({ error: routeError(error) }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    if (getBearerToken(request) !== getAdminPassword()) {
+      return Response.json({ error: "Wrong password." }, { status: 401 });
+    }
+
+    const body = (await request.json().catch(() => ({}))) as {
+      action?: string;
+      roomSlug?: string;
+    };
+    const db = getDb();
+
+    if (body.action === "cleanup-old") {
+      const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      await db.delete(messages).where(lt(messages.createdAt, cutoff));
+      return Response.json({ ok: true });
+    }
+
+    if (body.action === "delete-room") {
+      const roomSlug = normalizeSlug(body.roomSlug);
+      if (!roomSlug) {
+        return Response.json({ error: "Pick a room first." }, { status: 400 });
+      }
+
+      await db.delete(messages).where(eq(messages.roomSlug, roomSlug));
+      return Response.json({ ok: true });
+    }
+
+    return Response.json({ error: "Unknown admin action." }, { status: 400 });
   } catch (error) {
     return Response.json({ error: routeError(error) }, { status: 500 });
   }
