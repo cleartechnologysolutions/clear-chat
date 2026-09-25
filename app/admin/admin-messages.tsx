@@ -1,7 +1,6 @@
 "use client";
 
-import { GifMessage } from "../gif-message";
-import { MessageImage } from "../message-image";
+import { MessageBlocks } from "../message-blocks";
 import { FormEvent, useMemo, useState } from "react";
 
 type AdminMessage = {
@@ -244,19 +243,7 @@ export function AdminMessages() {
                 </div>
               ) : (
                 <div className="flex flex-col gap-3">
-                  {activeRoom.messages.map((message) => (
-                    <article key={message.id} className="rounded-lg border border-white/10 bg-white/[.04] p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-bold text-cyan-100">{message.displayName}</p>
-                        <p className="text-xs text-slate-500">
-                          {new Date(message.createdAt).toLocaleString()}
-                        </p>
-                      </div>
-                      
-                      <GifMessage body={message.body} />
-                      {message.imageUrl && <MessageImage src={message.imageUrl} />}
-                    </article>
-                  ))}
+                  <MessageBlocks messages={activeRoom.messages} />
                 </div>
               )}
             </div>

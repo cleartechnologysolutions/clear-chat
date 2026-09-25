@@ -1,3 +1,11 @@
+# Build 13: author colors, message grouping, and sound
+
+Each display name has a consistent accent color and initial badge. Consecutive messages from that exact name appear in one block; another name starts a new block. Text, uploaded images, and GIFs remain in chronological order. This app uses display names rather than accounts, so people using the same name share the same color/grouping; choose distinct names.
+
+Incoming messages trigger a brief two-tone chime after the browser has received a click or keypress. Use the Message sound button to enable/mute; the choice is remembered on this browser. No chime for initial history or successfully sent local messages. One chime plays per received batch, independently of desktop notifications. Suspended/background browser tabs or OS sound restrictions can delay/prevent audio. Existing polling typically discovers new messages within 2.5 seconds while active.
+
+No new Cloudflare settings or database migrations are needed for Build 13.
+
 # Build 12: two-person video calls
 
 See VIDEO-SETUP.md for Cloudflare TURN setup and the final two-device test. Includes camera, microphone, screen sharing, hang-up, and a two-person call limit independent of text chat. No D1 migration.
