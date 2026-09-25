@@ -19,6 +19,16 @@ export function useMessageSound() {
       oscillator.connect(gain);gain.connect(ctx.destination);oscillator.start(start);oscillator.stop(start+0.18);oscillator.onended=()=>{oscillator.disconnect();gain.disconnect();};
     });
   },[]);
+  const gong=useCallback(()=>{
+    const ctx=audio.current;if(!enabledRef.current||!ctx||ctx.state!=='running')return;
+    // A louder, decaying metallic chord, kept below clipping even when summed.
+    [180,269,421,593,827].forEach((frequency,index)=>{
+      const oscillator=ctx.createOscillator();const gain=ctx.createGain();const start=ctx.currentTime;
+      oscillator.type='sine';oscillator.frequency.setValueAtTime(frequency,start);oscillator.frequency.exponentialRampToValueAtTime(frequency*0.985,start+1.8);
+      gain.gain.setValueAtTime(0,start);gain.gain.linearRampToValueAtTime(0.19/(1+index*0.6),start+0.008);gain.gain.exponentialRampToValueAtTime(0.0001,start+2.2);
+      oscillator.connect(gain);gain.connect(ctx.destination);oscillator.start(start);oscillator.stop(start+2.25);oscillator.onended=()=>{oscillator.disconnect();gain.disconnect();};
+    });
+  },[]);
   useEffect(()=>{
     try{enabledRef.current=localStorage.getItem('chat-message-sound')!=='off';setEnabled(enabledRef.current);}catch{}
     const unlock=()=>{void arm();};window.addEventListener('pointerdown',unlock);window.addEventListener('keydown',unlock);
@@ -30,5 +40,5 @@ export function useMessageSound() {
     try{localStorage.setItem('chat-message-sound',next?'on':'off');}catch{}
     if(next){await arm();play();}
   }
-  return {enabled,ready,toggle,play};
+  return {enabled,ready,toggle,play,gong};
 }

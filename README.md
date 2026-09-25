@@ -1,3 +1,12 @@
+# Build 17: Escape, bonks, and contained scrolling
+
+- Escape closes the emoji/GIF picker and returns focus to the message box. It also closes participant action menus.
+- Click another person's name, then 🔔 Bonk. The recipient sees a banner and hears a louder gong if sound is enabled and their browser has been unlocked by a click/key interaction. Bonks target the exact display name in the room; duplicate names receive the same bonk. The sender does not hear it. This is not a system-volume override.
+- Cooldowns: 20 seconds per recipient and 10 seconds per sending network in the room. Offline recipients do not receive old bonks on joining; active pages poll every 2.5 seconds. Background tab suspension can delay delivery. Events expire after 90 seconds; stored attention state is cleared after inactivity.
+- The app stays within the visible viewport. Only the sidebar and messages scroll; dark scrollbars match the app. Verified at desktop, short-window, and mobile dimensions.
+
+Deploy the entire ZIP. No D1 migration or new environment variable is needed. Bonks reuse the existing VIDEO_ROOMS binding in separate attention instances; TURN is only needed for video relay, not bonks.
+
 # Build 16: bold participant colors
 
 First four participants use blue, yellow, red, and green, in that order. Stronger five-pixel accent borders and background tints improve separation. Names and two-letter badges remain visible. Colors are assigned in first-message order in the displayed conversation. No settings or database changes.

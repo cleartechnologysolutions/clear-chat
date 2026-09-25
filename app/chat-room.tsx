@@ -1,5 +1,6 @@
 "use client";
 
+import { useBonks } from "./use-bonks";
 import { useMessageSound } from "./message-sound";
 import { VideoCall } from "./video-call";
 import { convertEmoticons } from "./emoticons";
@@ -76,6 +77,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
   const [attachment, setAttachment] = useState<File | null>(null);
   const [attachmentPreview, setAttachmentPreview] = useState("");
   const sound = useMessageSound();
+  const attention = useBonks(loadedSlug,displayName,sound.gong);
   const notifyRef = useRef(true);
   const sendingRef = useRef(false);
   const seenIds = useRef(new Set<number>());
@@ -104,6 +106,13 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const followBottom = useRef(true);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if(!showEmojiPicker)return;
+    const escape=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.preventDefault();setShowEmojiPicker(false);composerRef.current?.focus();}};
+    window.addEventListener('keydown',escape);
+    return()=>window.removeEventListener('keydown',escape);
+  },[showEmojiPicker]);
 
   useEffect(() => {
     if (!attachment) { setAttachmentPreview(""); return; }
@@ -312,13 +321,13 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
   }
 
   return (
-    <main className="h-screen overflow-hidden bg-[#07111d] px-4 py-5 text-slate-50 sm:px-6 lg:px-8">
+    <main className="chat-viewport bg-[#07111d] px-4 py-5 text-slate-50 sm:px-6 lg:px-8">
       <div className="mx-auto flex h-full min-h-0 max-w-7xl flex-col gap-5">
         <header className="shrink-0 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-white/10 bg-white/[.04] px-4 py-3">
           <div className="flex items-center gap-3">
             <div>
               <p className="text-base font-black">Chat</p>
-              <p className="text-sm text-slate-400">Shared chat rooms · Build 16</p>
+              <p className="text-sm text-slate-400">Shared chat rooms · Build 17</p>
             </div>
           </div>
           <button
@@ -331,7 +340,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
         </header>
 
         <section className="grid min-h-0 flex-1 grid-rows-[minmax(0,0.85fr)_minmax(0,1.15fr)] gap-5 lg:grid-cols-[360px_1fr] lg:grid-rows-1">
-          <aside className="min-h-0 overflow-y-auto rounded-lg border border-white/10 bg-white/[.05] p-5 shadow-2xl shadow-black/25">
+          <aside className="chat-scroll min-h-0 overflow-y-auto rounded-lg border border-white/10 bg-white/[.05] p-5 shadow-2xl shadow-black/25">
             <VideoCall key={loadedSlug} room={loadedSlug} name={displayName} />
             <h1 className="text-3xl font-black tracking-tight">Chat Room</h1>
             <p className="mt-3 text-sm leading-6 text-slate-300">
@@ -419,9 +428,10 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
               </div>
             </div>
 
-            <div ref={scrollRef} onScroll={event=>{const el=event.currentTarget;followBottom.current=el.scrollHeight-el.scrollTop-el.clientHeight<80;}} className="min-h-0 flex-1 overflow-y-auto bg-slate-950/55 p-5">
+            {attention.notice&&<div role="alert" className="shrink-0 border-b border-amber-300/30 bg-amber-300/15 px-4 py-3 font-bold text-amber-100">{attention.notice}</div>}
+            <div ref={scrollRef} onScroll={event=>{const el=event.currentTarget;followBottom.current=el.scrollHeight-el.scrollTop-el.clientHeight<80;}} className="chat-scroll min-h-0 flex-1 overflow-y-auto bg-slate-950/55 p-5">
               <div className="flex min-h-full flex-col justify-end gap-3">
-              <MessageBlocks messages={messages} onImageLoad={()=>{if(followBottom.current && scrollRef.current)scrollRef.current.scrollTop=scrollRef.current.scrollHeight;}} />
+              <MessageBlocks messages={messages} viewerName={displayName.trim()||"Guest"} onBonk={name=>void attention.bonk(name)} bonkBusy={attention.sending} onImageLoad={()=>{if(followBottom.current && scrollRef.current)scrollRef.current.scrollTop=scrollRef.current.scrollHeight;}} />
               {messages.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-white/15 p-5 text-sm text-slate-400">
                   No messages yet. Send the first one.
