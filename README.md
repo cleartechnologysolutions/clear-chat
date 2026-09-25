@@ -1,4 +1,8 @@
-# Chat Build 7 — inline pictures
+# Build 8 branding update
+
+Removed the CTS badge and company name from Chat, the admin page, and browser metadata. Existing image storage and database setup stays the same. If Build 7 is working, simply replace files and deploy; no SQL changes needed.
+
+# Chat Build 8 — inline pictures
 
 Read **IMAGE-SETUP.md** first. This update requires the `image_key` D1 column and a private R2 bucket named `chat-images`.
 

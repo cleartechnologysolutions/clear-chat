@@ -1,4 +1,4 @@
-# Chat Build 7 — inline image messages
+# Chat Build 8 — inline image messages
 
 ## One-time setup before deploying
 
@@ -13,7 +13,7 @@ This adds an optional column and keeps all existing messages. If it says `duplic
 
 3. Replace the matching files in your existing Chat repository and commit. Keep your current DB name and ID in `vite.config.ts` if you customized them. The included config adds `CHAT_IMAGES` → `chat-images` to the generated Worker configuration.
 4. Keep your existing build command (`chmod +x scripts/*.sh && npm run build`) and deploy command (`npx wrangler deploy`). Keep the existing Worker, domain and ADMIN_PASSWORD secret.
-5. Reload Chat and look for **Build 7**. Choose Attach image or paste into the message box, optionally enter a caption, then Send. A preview appears before sending. Nothing uploads until Send.
+5. Reload Chat and look for **Build 8**. Choose Attach image or paste into the message box, optionally enter a caption, then Send. A preview appears before sending. Nothing uploads until Send.
 
 If adding the R2 binding manually: Chat Worker → Bindings → Add binding → R2 bucket, variable name `CHAT_IMAGES`, bucket `chat-images`.
 

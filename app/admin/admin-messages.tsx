@@ -120,11 +120,8 @@ export function AdminMessages() {
       <div className="mx-auto flex h-full min-h-0 max-w-7xl flex-col gap-5">
         <header className="flex shrink-0 flex-wrap items-center justify-between gap-4 rounded-lg border border-white/10 bg-white/[.04] px-4 py-3">
           <a href="/" className="flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-lg border border-white/60 bg-cyan-400/15 text-sm font-black tracking-[.08em]">
-              CTS
-            </div>
             <div>
-              <p className="text-base font-black">Clear Technology Solutions</p>
+              <p className="text-base font-black">Chat</p>
               <p className="text-sm text-slate-400">Chat admin</p>
             </div>
           </a>

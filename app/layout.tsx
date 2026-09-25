@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Clear Technology Solutions Chat",
-  description: "Simple shared chat rooms from Clear Technology Solutions.",
+  title: "Chat",
+  description: "Shared chat rooms with text and pictures.",
   other: {
     "codex-preview": "development",
   },
