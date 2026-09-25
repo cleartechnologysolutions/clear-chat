@@ -1,3 +1,7 @@
+# Build 14: distinct participant colors
+
+Resolves palette collisions within the displayed conversation (including Alicia/Adam). Adds two-letter badges such as AL and AD. Existing assigned colors stay the same as new participants append messages. No settings or database changes.
+
 # Build 13: author colors, message grouping, and sound
 
 Each display name has a consistent accent color and initial badge. Consecutive messages from that exact name appear in one block; another name starts a new block. Text, uploaded images, and GIFs remain in chronological order. This app uses display names rather than accounts, so people using the same name share the same color/grouping; choose distinct names.

@@ -1,13 +1,14 @@
 'use client';
 import { GifMessage } from './gif-message';
 import { MessageImage } from './message-image';
-import { authorColor, groupMessages, type GroupableMessage } from './message-groups';
+import { authorColors, groupMessages, type GroupableMessage } from './message-groups';
 export function MessageBlocks({messages,onImageLoad}:{messages:GroupableMessage[];onImageLoad?:()=>void}) {
+  const colors=authorColors(messages);
   return <>{groupMessages(messages).map(group=>{
-    const color=authorColor(group.displayName);
+    const color=colors.get(group.displayName)!;
     return <article key={group.messages[0].id} aria-label={`Messages from ${group.displayName}`} className="rounded-lg border border-white/10 border-l-[3px] p-3" style={{borderLeftColor:color,backgroundColor:color+'0a'}}>
       <div className="mb-1 flex flex-wrap items-center gap-2">
-        <span aria-hidden="true" className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold" style={{color,backgroundColor:color+'20'}}>{Array.from(group.displayName)[0]?.toUpperCase()||'?'}</span>
+        <span aria-hidden="true" className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold" style={{color,backgroundColor:color+'20'}}>{Array.from(group.displayName.trim()).slice(0,2).join('').toUpperCase()||'?' }</span>
         <p className="min-w-0 break-words font-bold" style={{color}}>{group.displayName}</p>
         <time dateTime={group.messages[0].createdAt} suppressHydrationWarning className="ml-auto text-[11px] text-slate-400">{new Date(group.messages[0].createdAt).toLocaleString()}</time>
       </div>
