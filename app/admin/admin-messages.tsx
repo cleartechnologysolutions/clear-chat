@@ -1,5 +1,6 @@
 "use client";
 
+import { GifMessage } from "../gif-message";
 import { MessageImage } from "../message-image";
 import { FormEvent, useMemo, useState } from "react";
 
@@ -251,9 +252,8 @@ export function AdminMessages() {
                           {new Date(message.createdAt).toLocaleString()}
                         </p>
                       </div>
-                      <p className="mt-2 whitespace-pre-wrap break-words text-base leading-7 text-slate-100">
-                        {message.body}
-                      </p>
+                      
+                      <GifMessage body={message.body} />
                       {message.imageUrl && <MessageImage src={message.imageUrl} />}
                     </article>
                   ))}

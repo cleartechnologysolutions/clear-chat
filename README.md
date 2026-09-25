@@ -1,3 +1,11 @@
+# Build 10: GIF search and image links
+
+See GIF-SETUP.md to add KLIPY_API_KEY as a Cloudflare runtime secret. No database changes.
+
+# Build 9 — keyboard focus fix
+
+The message field keeps focus during sending and receives focus again after Send, including failed sends. Enter sends as before. No database or bucket changes needed.
+
 # Build 8 branding update
 
 Removed the CTS badge and company name from Chat, the admin page, and browser metadata. Existing image storage and database setup stays the same. If Build 7 is working, simply replace files and deploy; no SQL changes needed.

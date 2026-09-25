@@ -1,5 +1,7 @@
 "use client";
 
+import { GifPicker } from "./gif-picker";
+import { GifMessage } from "./gif-message";
 import { MessageImage } from "./message-image";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -71,11 +73,13 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
   const [attachment, setAttachment] = useState<File | null>(null);
   const [attachmentPreview, setAttachmentPreview] = useState("");
   const roomRequest = useRef(0);
+  const composerRef = useRef<HTMLInputElement | null>(null);
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState("Enter a room or make a new one.");
   const [notifyOnMessage, setNotifyOnMessage] = useState(true);
   const [isSending, setIsSending] = useState(false);
+  const [pickerTab, setPickerTab] = useState("emoji");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [lastSeenId, setLastSeenId] = useState(0);
   const loadedSlugRef = useRef("");
@@ -250,6 +254,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
       setStatus(error instanceof Error ? error.message : "Send failed.");
     } finally {
       setIsSending(false);
+      requestAnimationFrame(() => composerRef.current?.focus({ preventScroll: true }));
     }
   }
 
@@ -285,7 +290,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
           <div className="flex items-center gap-3">
             <div>
               <p className="text-base font-black">Chat</p>
-              <p className="text-sm text-slate-400">Shared chat rooms · Build 8</p>
+              <p className="text-sm text-slate-400">Shared chat rooms · Build 10</p>
             </div>
           </div>
           <button
@@ -392,9 +397,8 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
                       {new Date(message.createdAt).toLocaleString()}
                     </p>
                   </div>
-                  <p className="mt-2 whitespace-pre-wrap break-words text-base leading-7 text-slate-100">
-                    {message.body}
-                  </p>
+                  
+                  <GifMessage body={message.body} onLoad={()=>{if(followBottom.current && scrollRef.current)scrollRef.current.scrollTop=scrollRef.current.scrollHeight;}} />
                   {message.imageUrl && <MessageImage src={message.imageUrl} onLoad={()=>{if(followBottom.current && scrollRef.current)scrollRef.current.scrollTop=scrollRef.current.scrollHeight;}} />}
                 </article>
               ))}
@@ -408,6 +412,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
             </div>
 
             <form onSubmit={sendMessage} className="relative flex shrink-0 flex-wrap gap-3 border-t border-white/10 p-4" onPaste={event=>{const item=Array.from(event.clipboardData.items).find(item=>item.kind==='file' && item.type.startsWith('image/'));if(item){event.preventDefault();chooseImage(item.getAsFile() || undefined);}}}>
+              {draft.includes("https://") && <div className="max-h-36 w-full overflow-y-auto"><GifMessage body={draft} previewOnly/></div>}
               {attachmentPreview && <div className="flex w-full items-center gap-3 rounded border border-cyan-300/20 bg-slate-950/60 p-2">
                 <img src={attachmentPreview} alt="Image ready to send" className="h-16 max-w-32 rounded object-contain" />
                 <span className="min-w-0 flex-1 truncate text-sm">{attachment?.name}</span>
@@ -416,8 +421,9 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
               <label className="cursor-pointer rounded border border-white/20 px-3 py-3 text-sm">Attach image<input aria-label="Attach image" type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={isSending} className="sr-only" onChange={event=>{chooseImage(event.target.files?.[0]);event.target.value='';}} /></label>
               <div className="relative min-w-0 flex-1">
                 {showEmojiPicker ? (
-                  <div className="absolute bottom-14 left-0 z-10 grid w-full max-w-sm grid-cols-5 gap-2 rounded-lg border border-white/15 bg-slate-950 p-3 shadow-2xl shadow-black/40">
-                    {EMOJIS.map((emoji) => (
+                  <div className="absolute bottom-14 left-0 z-10 w-[min(22rem,80vw)] max-w-sm rounded-lg border border-white/15 bg-slate-950 p-3 shadow-2xl shadow-black/40">
+                    <div className="mb-3 flex gap-4"><button type="button" onClick={()=>setPickerTab("emoji")} className={pickerTab==="emoji"?"text-cyan-300":""}>Emoji</button><button type="button" onClick={()=>setPickerTab("gif")} className={pickerTab==="gif"?"text-cyan-300":""}>GIFs</button><button type="button" className="ml-auto" onClick={()=>setShowEmojiPicker(false)} aria-label="Close picker">×</button></div>
+                    {pickerTab==="gif" ? <GifPicker onSelect={url=>{setDraft(current=>(current+" "+url).trim().slice(0,2000));setShowEmojiPicker(false);composerRef.current?.focus();}} /> : <div className="grid grid-cols-5 gap-2">{EMOJIS.map((emoji) => (
                       <button
                         key={emoji}
                         type="button"
@@ -427,11 +433,12 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
                       >
                         {emoji}
                       </button>
-                    ))}
+                    ))}</div>}
                   </div>
                 ) : null}
                 <input
-                  disabled={isSending}
+                  ref={composerRef}
+                  readOnly={isSending}
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                   placeholder="Type a message..."
