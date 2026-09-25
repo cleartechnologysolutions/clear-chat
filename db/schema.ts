@@ -5,5 +5,6 @@ export const messages = sqliteTable("messages", {
   roomSlug: text("room_slug").notNull(),
   displayName: text("display_name").notNull(),
   body: text("body").notNull(),
+  imageKey: text("image_key"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 });

@@ -1,11 +1,13 @@
 "use client";
 
+import { MessageImage } from "../message-image";
 import { FormEvent, useMemo, useState } from "react";
 
 type AdminMessage = {
   id: number;
   displayName: string;
   body: string;
+  imageUrl?: string | null;
   createdAt: string;
 };
 
@@ -255,6 +257,7 @@ export function AdminMessages() {
                       <p className="mt-2 whitespace-pre-wrap break-words text-base leading-7 text-slate-100">
                         {message.body}
                       </p>
+                      {message.imageUrl && <MessageImage src={message.imageUrl} />}
                     </article>
                   ))}
                 </div>

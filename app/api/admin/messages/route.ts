@@ -1,4 +1,5 @@
-import { desc, eq, lt } from "drizzle-orm";
+import { imageBucket, messageImage } from "../../../chat-images";
+import { desc, eq, lt, inArray, type SQL } from "drizzle-orm";
 import { env } from "cloudflare:workers";
 import { getDb } from "../../../../db";
 import { messages } from "../../../../db/schema";
@@ -57,6 +58,7 @@ export async function GET(request: Request) {
           id: number;
           displayName: string;
           body: string;
+          imageUrl: string | null;
           createdAt: string;
         }>;
       }
@@ -75,6 +77,7 @@ export async function GET(request: Request) {
         id: message.id,
         displayName: message.displayName,
         body: message.body,
+        imageUrl: messageImage(message),
         createdAt: message.createdAt.toISOString(),
       });
       rooms.set(message.roomSlug, room);
@@ -105,7 +108,7 @@ export async function DELETE(request: Request) {
 
     if (body.action === "cleanup-old") {
       const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      await db.delete(messages).where(lt(messages.createdAt, cutoff));
+      await deleteMatching(lt(messages.createdAt, cutoff));
       return Response.json({ ok: true });
     }
 
@@ -115,12 +118,27 @@ export async function DELETE(request: Request) {
         return Response.json({ error: "Pick a room first." }, { status: 400 });
       }
 
-      await db.delete(messages).where(eq(messages.roomSlug, roomSlug));
+      await deleteMatching(eq(messages.roomSlug, roomSlug));
       return Response.json({ ok: true });
     }
 
     return Response.json({ error: "Unknown admin action." }, { status: 400 });
   } catch (error) {
     return Response.json({ error: routeError(error) }, { status: 500 });
+  }
+}
+
+async function deleteMatching(condition: SQL) {
+  const db = getDb();
+  while (true) {
+    const batch = await db.select().from(messages).where(condition).limit(100);
+    if (!batch.length) return;
+    const keys = batch.flatMap(message => message.imageKey ? [message.imageKey] : []);
+    if (keys.length) {
+      const bucket = imageBucket();
+      if (!bucket) throw new Error('Image storage unavailable. Nothing in this batch was deleted; restore CHAT_IMAGES and retry.');
+      await bucket.delete(keys);
+    }
+    await db.delete(messages).where(inArray(messages.id, batch.map(message => message.id)));
   }
 }

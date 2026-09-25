@@ -1,3 +1,7 @@
+# Chat Build 7 — inline pictures
+
+Read **IMAGE-SETUP.md** first. This update requires the `image_key` D1 column and a private R2 bucket named `chat-images`.
+
 # Clear Technology Solutions Chat
 
 A simple Cloudflare Worker chat-room app for `chat.cleartechnologysolutions.com`.

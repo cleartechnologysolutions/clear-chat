@@ -1,5 +1,6 @@
 "use client";
 
+import { MessageImage } from "./message-image";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 function cleanSlug(value: string) {
@@ -24,6 +25,7 @@ type ChatMessage = {
   roomSlug: string;
   displayName: string;
   body: string;
+  imageUrl?: string | null;
   createdAt: string;
 };
 
@@ -66,6 +68,9 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
   const [slug, setSlug] = useState(initialSlug || "");
   const [loadedSlug, setLoadedSlug] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const [attachmentPreview, setAttachmentPreview] = useState("");
+  const roomRequest = useRef(0);
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState("Enter a room or make a new one.");
@@ -76,13 +81,28 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
   const loadedSlugRef = useRef("");
   const lastSeenIdRef = useRef(0);
   const initializedRef = useRef(false);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const followBottom = useRef(true);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!attachment) { setAttachmentPreview(""); return; }
+    const url=URL.createObjectURL(attachment);setAttachmentPreview(url);
+    return ()=>URL.revokeObjectURL(url);
+  }, [attachment]);
+
+  function chooseImage(file?: File) {
+    if (!file || isSending) return;
+    if (!['image/png','image/jpeg','image/webp','image/gif'].includes(file.type)) {setStatus('Use a PNG, JPEG, WebP, or GIF image.');return;}
+    if(file.size>10*1024*1024){setStatus('Images must be 10 MB or smaller.');return;}
+    setAttachment(file);setStatus('Image attached. Add an optional message, then Send.');
+  }
 
   useEffect(() => {
     const latestId = messages.at(-1)?.id || 0;
     setLastSeenId(latestId);
     lastSeenIdRef.current = latestId;
-    messagesEndRef.current?.scrollIntoView({ block: "end" });
+    if (followBottom.current && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
   useEffect(() => {
@@ -102,6 +122,8 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
       return;
     }
 
+    if (!quiet) {roomRequest.current++; loadedSlugRef.current = safeSlug; followBottom.current=true;}
+    const requestId = roomRequest.current;
     try {
       if (!quiet) setStatus("Loading room...");
       const after = quiet ? lastSeenIdRef.current : 0;
@@ -111,6 +133,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
       const data = (await response.json()) as MessagesResponse;
       if (!response.ok) throw new Error(data.error || "Load failed.");
 
+      if (requestId !== roomRequest.current || (quiet && loadedSlugRef.current !== safeSlug)) return;
       const incoming = data.messages || [];
       if (quiet && incoming.length === 0) return;
 
@@ -183,6 +206,8 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
 
   function openRoom(event: FormEvent) {
     event.preventDefault();
+    if (isSending) return;
+    setAttachment(null);
     const safeSlug = normalizedSlug || randomSlug();
     window.history.pushState(null, "", `/${safeSlug}`);
     setMessages([]);
@@ -191,28 +216,32 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
 
   async function sendMessage(event: FormEvent) {
     event.preventDefault();
-    const safeSlug = normalizedSlug || loadedSlug || randomSlug();
+    const safeSlug = loadedSlug || normalizedSlug || randomSlug();
     const safeName = displayName.trim() || "Guest";
     const body = draft.trim();
-    if (!body) return;
+    if (isSending || (!body && !attachment)) return;
 
     setIsSending(true);
     setStatus("Sending...");
     window.localStorage.setItem("clear-chat-name", safeName);
 
     try {
+      const form = new FormData();
+      form.set('displayName',safeName);form.set('body',body);
+      if(attachment)form.set('image',attachment);
       const response = await fetch(`/api/rooms/${safeSlug}/messages`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ displayName: safeName, body }),
+        headers: attachment ? undefined : { "Content-Type": "application/json" },
+        body: attachment ? form : JSON.stringify({ displayName: safeName, body }),
       });
       const data = (await response.json()) as MessagesResponse;
       if (!response.ok) throw new Error(data.error || "Send failed.");
 
       if (data.message) {
-        setMessages((current) => [...current, data.message as ChatMessage]);
+        setMessages((current) => current.some(item => item.id === data.message!.id) ? current : [...current, data.message as ChatMessage].sort((a,b)=>a.id-b.id));
       }
       setDraft("");
+      setAttachment(null);
       setLoadedSlug(safeSlug);
       setSlug(safeSlug);
       window.history.pushState(null, "", `/${safeSlug}`);
@@ -236,6 +265,8 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
   }
 
   function newRoom() {
+    if (isSending) return;
+    setAttachment(null);
     const nextSlug = randomSlug();
     window.history.pushState(null, "", `/${nextSlug}`);
     setMessages([]);
@@ -257,7 +288,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
             </div>
             <div>
               <p className="text-base font-black">Clear Technology Solutions</p>
-              <p className="text-sm text-slate-400">Shared chat rooms</p>
+              <p className="text-sm text-slate-400">Shared chat rooms · Build 7</p>
             </div>
           </div>
           <button
@@ -354,7 +385,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto bg-slate-950/55 p-5">
+            <div ref={scrollRef} onScroll={event=>{const el=event.currentTarget;followBottom.current=el.scrollHeight-el.scrollTop-el.clientHeight<80;}} className="min-h-0 flex-1 overflow-y-auto bg-slate-950/55 p-5">
               <div className="flex min-h-full flex-col justify-end gap-3">
               {messages.map((message) => (
                 <article key={message.id} className="rounded-lg border border-white/10 bg-white/[.04] p-3">
@@ -367,6 +398,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
                   <p className="mt-2 whitespace-pre-wrap break-words text-base leading-7 text-slate-100">
                     {message.body}
                   </p>
+                  {message.imageUrl && <MessageImage src={message.imageUrl} onLoad={()=>{if(followBottom.current && scrollRef.current)scrollRef.current.scrollTop=scrollRef.current.scrollHeight;}} />}
                 </article>
               ))}
               {messages.length === 0 ? (
@@ -378,7 +410,13 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
               </div>
             </div>
 
-            <form onSubmit={sendMessage} className="relative flex shrink-0 gap-3 border-t border-white/10 p-4">
+            <form onSubmit={sendMessage} className="relative flex shrink-0 flex-wrap gap-3 border-t border-white/10 p-4" onPaste={event=>{const item=Array.from(event.clipboardData.items).find(item=>item.kind==='file' && item.type.startsWith('image/'));if(item){event.preventDefault();chooseImage(item.getAsFile() || undefined);}}}>
+              {attachmentPreview && <div className="flex w-full items-center gap-3 rounded border border-cyan-300/20 bg-slate-950/60 p-2">
+                <img src={attachmentPreview} alt="Image ready to send" className="h-16 max-w-32 rounded object-contain" />
+                <span className="min-w-0 flex-1 truncate text-sm">{attachment?.name}</span>
+                <button type="button" disabled={isSending} onClick={()=>setAttachment(null)} className="px-3 py-2 text-sm">Remove attachment</button>
+              </div>}
+              <label className="cursor-pointer rounded border border-white/20 px-3 py-3 text-sm">Attach image<input aria-label="Attach image" type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={isSending} className="sr-only" onChange={event=>{chooseImage(event.target.files?.[0]);event.target.value='';}} /></label>
               <div className="relative min-w-0 flex-1">
                 {showEmojiPicker ? (
                   <div className="absolute bottom-14 left-0 z-10 grid w-full max-w-sm grid-cols-5 gap-2 rounded-lg border border-white/15 bg-slate-950 p-3 shadow-2xl shadow-black/40">
@@ -396,6 +434,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
                   </div>
                 ) : null}
                 <input
+                  disabled={isSending}
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
                   placeholder="Type a message..."
@@ -413,7 +452,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
               </button>
               <button
                 type="submit"
-                disabled={isSending || !draft.trim()}
+                disabled={isSending || (!draft.trim() && !attachment)}
                 className="h-12 rounded-md bg-white px-6 text-sm font-black text-slate-950 hover:bg-cyan-100 disabled:opacity-60"
               >
                 {isSending ? "Sending" : "Send"}
