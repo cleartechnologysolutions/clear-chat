@@ -1,3 +1,4 @@
+import { handleBonks } from "./bonks";
 interface VideoEnv { TURN_KEY_ID?: string; TURN_API_TOKEN?: string }
 type Member = { id: string; name: string; ready: boolean; seen: number; window: number; count: number; callId?: string; iceAt?: number };
 export class VideoRoom {
@@ -18,6 +19,7 @@ export class VideoRoom {
   }
   async fetch(request: Request) {
     const url = new URL(request.url);
+    if(url.pathname.startsWith("/api/bonks/")) return handleBonks(this.state,request);
     if (url.pathname.endsWith('/ice')) {
       if (request.method !== 'POST') return new Response('Method not allowed', {status:405});
       const token=request.headers.get('Authorization')?.replace(/^Bearer /,'');
@@ -75,7 +77,7 @@ export class VideoRoom {
   }
   webSocketClose(ws:WebSocket){this.leave(ws);}
   webSocketError(ws:WebSocket){this.leave(ws);try{ws.close(1011,'Connection lost');}catch{}}
-  async alarm(){for(const ws of this.members()){const m=ws.deserializeAttachment() as Member|null;if(m&&Date.now()-m.seen>90_000){this.leave(ws);ws.close(1000,'Timed out');}}
+  async alarm(){await this.state.storage.delete("bonks");for(const ws of this.members()){const m=ws.deserializeAttachment() as Member|null;if(m&&Date.now()-m.seen>90_000){this.leave(ws);ws.close(1000,'Timed out');}}
     if(this.members().some(s=>s.deserializeAttachment()))await this.state.storage.setAlarm(Date.now()+60_000);
   }
 }

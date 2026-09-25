@@ -32,6 +32,12 @@ const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
+    const bonks = url.pathname.match(/^\/api\/bonks\/([a-z0-9-]{1,60})$/);
+    if (bonks) {
+      if (request.headers.get("Origin") !== url.origin) return new Response("Origin not allowed", {status:403});
+      if (!env.VIDEO_ROOMS) return Response.json({error:"Deploy the complete configuration to enable bonks."},{status:503});
+      return env.VIDEO_ROOMS.get(env.VIDEO_ROOMS.idFromName("bonks:"+bonks[1])).fetch(request);
+    }
     const call = url.pathname.match(/^\/api\/calls\/([a-z0-9-]{1,60})(?:\/ice)?$/);
     if (call) {
       if (request.headers.get("Origin") !== url.origin) return new Response("Origin not allowed", {status:403});
