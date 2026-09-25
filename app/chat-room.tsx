@@ -1,10 +1,11 @@
 "use client";
 
+import { useMessageSound } from "./message-sound";
 import { VideoCall } from "./video-call";
 import { convertEmoticons } from "./emoticons";
 import { GifPicker } from "./gif-picker";
 import { GifMessage } from "./gif-message";
-import { MessageImage } from "./message-image";
+import { MessageBlocks } from "./message-blocks";
 import { FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 function cleanSlug(value: string) {
@@ -74,6 +75,12 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
   const [displayName, setDisplayName] = useState("");
   const [attachment, setAttachment] = useState<File | null>(null);
   const [attachmentPreview, setAttachmentPreview] = useState("");
+  const sound = useMessageSound();
+  const notifyRef = useRef(true);
+  const sendingRef = useRef(false);
+  const seenIds = useRef(new Set<number>());
+  const fetchedId = useRef(0);
+  const polling = useRef(false);
   const roomRequest = useRef(0);
   const composerRef = useRef<HTMLInputElement | null>(null);
   const [draft, setDraft] = useState("");
@@ -118,6 +125,8 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
     if (followBottom.current && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
+  useEffect(() => { notifyRef.current = notifyOnMessage; }, [notifyOnMessage]);
+
   useEffect(() => {
     loadedSlugRef.current = loadedSlug;
   }, [loadedSlug]);
@@ -135,11 +144,13 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
       return;
     }
 
-    if (!quiet) {roomRequest.current++; loadedSlugRef.current = safeSlug; followBottom.current=true;}
+    if (quiet && (polling.current || sendingRef.current)) return;
+    if (quiet) polling.current = true;
+    if (!quiet) {roomRequest.current++; loadedSlugRef.current = safeSlug; followBottom.current=true; fetchedId.current=0; seenIds.current=new Set();}
     const requestId = roomRequest.current;
     try {
       if (!quiet) setStatus("Loading room...");
-      const after = quiet ? lastSeenIdRef.current : 0;
+      const after = quiet ? fetchedId.current : 0;
       const response = await fetch(`/api/rooms/${safeSlug}/messages?after=${after}`, {
         cache: "no-store",
       });
@@ -147,26 +158,31 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
       if (!response.ok) throw new Error(data.error || "Load failed.");
 
       if (requestId !== roomRequest.current || (quiet && loadedSlugRef.current !== safeSlug)) return;
+      if (quiet && sendingRef.current) return;
       const incoming = data.messages || [];
+      const fresh = incoming.filter(message=>!seenIds.current.has(message.id));
+      for(const message of incoming) seenIds.current.add(message.id);
+      fetchedId.current = Math.max(fetchedId.current,...incoming.map(message=>message.id));
       if (quiet && incoming.length === 0) return;
 
       setMessages((current) => {
         if (!quiet) return incoming;
         const existing = new Set(current.map((message) => message.id));
-        return [...current, ...incoming.filter((message) => !existing.has(message.id))];
+        return [...current, ...incoming.filter((message) => !existing.has(message.id))].sort((a,b)=>a.id-b.id);
       });
 
       setLoadedSlug(safeSlug);
       setSlug(safeSlug);
       setStatus(incoming.length ? "Loaded." : quiet ? "No new messages." : "Room ready.");
 
-      if (quiet && incoming.length > 0) {
-        flashNotification(incoming.at(-1)?.displayName || "Someone");
+      if (quiet && fresh.length > 0) {
+        sound.play();
+        flashNotification(fresh.at(-1)?.displayName || "Someone");
       }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Load failed.");
-    }
-  }, []);
+    } finally { if(quiet) polling.current=false; }
+  }, [sound.play]);
 
   useEffect(() => {
     if (initializedRef.current) return;
@@ -188,7 +204,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
   }, [loadedSlug, loadMessages]);
 
   function flashNotification(sender: string) {
-    if (!notifyOnMessage || document.visibilityState === "visible") return;
+    if (!notifyRef.current || document.visibilityState === "visible") return;
 
     const originalTitle = document.title;
     document.title = `New message from ${sender}`;
@@ -234,6 +250,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
     const body = convertEmoticons(draft.trim(), true);
     if (isSending || (!body && !attachment)) return;
 
+    sendingRef.current=true;
     setIsSending(true);
     setStatus("Sending...");
     window.localStorage.setItem("clear-chat-name", safeName);
@@ -251,6 +268,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
       if (!response.ok) throw new Error(data.error || "Send failed.");
 
       if (data.message) {
+        seenIds.current.add(data.message.id);
         setMessages((current) => current.some(item => item.id === data.message!.id) ? current : [...current, data.message as ChatMessage].sort((a,b)=>a.id-b.id));
       }
       setDraft("");
@@ -262,6 +280,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Send failed.");
     } finally {
+      sendingRef.current=false;
       setIsSending(false);
       requestAnimationFrame(() => composerRef.current?.focus({ preventScroll: true }));
     }
@@ -299,7 +318,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
           <div className="flex items-center gap-3">
             <div>
               <p className="text-base font-black">Chat</p>
-              <p className="text-sm text-slate-400">Shared chat rooms · Build 12</p>
+              <p className="text-sm text-slate-400">Shared chat rooms · Build 13</p>
             </div>
           </div>
           <button
@@ -363,6 +382,9 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
               </button>
             </div>
 
+            <button type="button" onClick={()=>void sound.toggle()} aria-pressed={sound.enabled} className="mt-5 rounded-md border border-cyan-300/30 px-3 py-2 text-sm font-bold text-cyan-100 hover:bg-cyan-400/10">
+              {sound.enabled ? sound.ready ? "Message sound: on" : "Enable message sound" : "Message sound: off"}
+            </button>
             <label className="mt-5 flex items-center gap-3 text-sm text-slate-300">
               <input
                 type="checkbox"
@@ -399,19 +421,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
 
             <div ref={scrollRef} onScroll={event=>{const el=event.currentTarget;followBottom.current=el.scrollHeight-el.scrollTop-el.clientHeight<80;}} className="min-h-0 flex-1 overflow-y-auto bg-slate-950/55 p-5">
               <div className="flex min-h-full flex-col justify-end gap-3">
-              {messages.map((message) => (
-                <article key={message.id} className="rounded-lg border border-white/10 bg-white/[.04] p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-bold text-cyan-100">{message.displayName}</p>
-                    <p className="text-xs text-slate-500">
-                      {new Date(message.createdAt).toLocaleString()}
-                    </p>
-                  </div>
-                  
-                  <GifMessage body={message.body} onLoad={()=>{if(followBottom.current && scrollRef.current)scrollRef.current.scrollTop=scrollRef.current.scrollHeight;}} />
-                  {message.imageUrl && <MessageImage src={message.imageUrl} onLoad={()=>{if(followBottom.current && scrollRef.current)scrollRef.current.scrollTop=scrollRef.current.scrollHeight;}} />}
-                </article>
-              ))}
+              <MessageBlocks messages={messages} onImageLoad={()=>{if(followBottom.current && scrollRef.current)scrollRef.current.scrollTop=scrollRef.current.scrollHeight;}} />
               {messages.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-white/15 p-5 text-sm text-slate-400">
                   No messages yet. Send the first one.
