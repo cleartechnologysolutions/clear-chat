@@ -5,23 +5,17 @@ export type GroupableMessage = {
   imageUrl?: string | null;
   createdAt: string;
 };
-const COLORS = ['#67e8f9','#c4b5fd','#fda4af','#86efac','#fcd34d','#93c5fd','#fdba74','#f0abfc','#5eead4','#bef264','#a5b4fc','#f9a8d4'];
-export function authorColor(name: string) {
-  let hash = 2166136261;
-  for (const char of name) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
-  return COLORS[(hash >>> 0) % COLORS.length];
-}
+// Order deliberately separates adjacent participants by hue, not just shade.
+const COLORS = ['#3399ff','#ffdf00','#ff5555','#33dd77','#ee77ff','#ff9933','#33dddd','#ffffff'];
 // Reserve each palette color once per visible conversation, in first-message order.
 // Appending messages never changes colors already assigned in that conversation.
 export function authorColors(messages: GroupableMessage[]) {
   const assigned = new Map<string, string>();
   const used = new Set<string>();
-  const alternatives = [4,3,2,0,1,6,8,5,7,9,10,11].map(index=>COLORS[index]);
   for (const message of messages) {
     const name=message.displayName;
     if(assigned.has(name))continue;
-    let color=authorColor(name);
-    if(used.has(color)) color=alternatives.find(candidate=>!used.has(candidate)) || '';
+    let color=COLORS[assigned.size] || '';
     if(!color) {
       // Beyond the base palette, generate additional distinct light colors.
       let index=assigned.size;

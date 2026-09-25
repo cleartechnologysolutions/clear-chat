@@ -1,3 +1,11 @@
+# Build 16: bold participant colors
+
+First four participants use blue, yellow, red, and green, in that order. Stronger five-pixel accent borders and background tints improve separation. Names and two-letter badges remain visible. Colors are assigned in first-message order in the displayed conversation. No settings or database changes.
+
+# Build 15: clearly separated participant colors
+
+Assigns the room palette in first-message order: blue, gold, green, pink, purple, orange, teal, red. Removes name hashing so similar hash-selected shades are not assigned to the first few participants. Two-letter badges and grouping are preserved. No configuration or database changes.
+
 # Build 14: distinct participant colors
 
 Resolves palette collisions within the displayed conversation (including Alicia/Adam). Adds two-letter badges such as AL and AD. Existing assigned colors stay the same as new participants append messages. No settings or database changes.

@@ -318,7 +318,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
           <div className="flex items-center gap-3">
             <div>
               <p className="text-base font-black">Chat</p>
-              <p className="text-sm text-slate-400">Shared chat rooms · Build 14</p>
+              <p className="text-sm text-slate-400">Shared chat rooms · Build 16</p>
             </div>
           </div>
           <button
