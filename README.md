@@ -1,3 +1,7 @@
+# Build 12: two-person video calls
+
+See VIDEO-SETUP.md for Cloudflare TURN setup and the final two-device test. Includes camera, microphone, screen sharing, hang-up, and a two-person call limit independent of text chat. No D1 migration.
+
 # Build 11: automatic emoticons
 
 Standalone emoticons convert after Space or Send: :) :D :P ;) :( :O :/ :| and <3, including common nose variants. URLs stay unchanged. No new configuration or database changes.

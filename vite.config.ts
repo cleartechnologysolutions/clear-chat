@@ -13,6 +13,8 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 
 const localBindingConfig = {
   main: "./worker/index.ts",
+  durable_objects: { bindings: [{ name: "VIDEO_ROOMS", class_name: "VideoRoom" }] },
+  migrations: [{ tag: "chat-video-v1", new_sqlite_classes: ["VideoRoom"] }],
   d1_databases: d1
     ? [
         {

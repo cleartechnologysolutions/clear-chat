@@ -1,5 +1,6 @@
 "use client";
 
+import { VideoCall } from "./video-call";
 import { convertEmoticons } from "./emoticons";
 import { GifPicker } from "./gif-picker";
 import { GifMessage } from "./gif-message";
@@ -298,7 +299,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
           <div className="flex items-center gap-3">
             <div>
               <p className="text-base font-black">Chat</p>
-              <p className="text-sm text-slate-400">Shared chat rooms · Build 11</p>
+              <p className="text-sm text-slate-400">Shared chat rooms · Build 12</p>
             </div>
           </div>
           <button
@@ -310,8 +311,9 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
           </button>
         </header>
 
-        <section className="grid min-h-0 flex-1 gap-5 lg:grid-cols-[360px_1fr]">
+        <section className="grid min-h-0 flex-1 grid-rows-[minmax(0,0.85fr)_minmax(0,1.15fr)] gap-5 lg:grid-cols-[360px_1fr] lg:grid-rows-1">
           <aside className="min-h-0 overflow-y-auto rounded-lg border border-white/10 bg-white/[.05] p-5 shadow-2xl shadow-black/25">
+            <VideoCall key={loadedSlug} room={loadedSlug} name={displayName} />
             <h1 className="text-3xl font-black tracking-tight">Chat Room</h1>
             <p className="mt-3 text-sm leading-6 text-slate-300">
               Give someone a room URL like /abcd. Anyone with the link can join and send short messages.
@@ -426,8 +428,8 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
                 <span className="min-w-0 flex-1 truncate text-sm">{attachment?.name}</span>
                 <button type="button" disabled={isSending} onClick={()=>setAttachment(null)} className="px-3 py-2 text-sm">Remove attachment</button>
               </div>}
-              <label className="cursor-pointer rounded border border-white/20 px-3 py-3 text-sm">Attach image<input aria-label="Attach image" type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={isSending} className="sr-only" onChange={event=>{chooseImage(event.target.files?.[0]);event.target.value='';}} /></label>
-              <div className="relative min-w-0 flex-1">
+              <label className="order-2 cursor-pointer rounded border sm:order-none border-white/20 px-3 py-3 text-sm">Attach image<input aria-label="Attach image" type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={isSending} className="sr-only" onChange={event=>{chooseImage(event.target.files?.[0]);event.target.value='';}} /></label>
+              <div className="relative order-1 min-w-0 basis-full sm:order-none sm:flex-1 sm:basis-0">
                 {showEmojiPicker ? (
                   <div className="absolute bottom-14 left-0 z-10 w-[min(22rem,80vw)] max-w-sm rounded-lg border border-white/15 bg-slate-950 p-3 shadow-2xl shadow-black/40">
                     <div className="mb-3 flex gap-4"><button type="button" onClick={()=>setPickerTab("emoji")} className={pickerTab==="emoji"?"text-cyan-300":""}>Emoji</button><button type="button" onClick={()=>setPickerTab("gif")} className={pickerTab==="gif"?"text-cyan-300":""}>GIFs</button><button type="button" className="ml-auto" onClick={()=>setShowEmojiPicker(false)} aria-label="Close picker">×</button></div>
@@ -469,7 +471,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
               <button
                 type="button"
                 onClick={() => setShowEmojiPicker((current) => !current)}
-                className="h-12 rounded-md border border-white/15 px-4 text-xl text-slate-100 hover:bg-white/10"
+                className="order-2 h-12 rounded-md border border-white/15 px-4 text-xl sm:order-none text-slate-100 hover:bg-white/10"
                 aria-label="Open emoji picker"
               >
                 😀
@@ -477,7 +479,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
               <button
                 type="submit"
                 disabled={isSending || (!draft.trim() && !attachment)}
-                className="h-12 rounded-md bg-white px-6 text-sm font-black text-slate-950 hover:bg-cyan-100 disabled:opacity-60"
+                className="order-2 h-12 rounded-md bg-white px-6 sm:order-none text-sm font-black text-slate-950 hover:bg-cyan-100 disabled:opacity-60"
               >
                 {isSending ? "Sending" : "Send"}
               </button>
