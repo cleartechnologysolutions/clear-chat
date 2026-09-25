@@ -1,9 +1,10 @@
 "use client";
 
+import { convertEmoticons } from "./emoticons";
 import { GifPicker } from "./gif-picker";
 import { GifMessage } from "./gif-message";
 import { MessageImage } from "./message-image";
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 function cleanSlug(value: string) {
   return value
@@ -75,6 +76,13 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
   const roomRequest = useRef(0);
   const composerRef = useRef<HTMLInputElement | null>(null);
   const [draft, setDraft] = useState("");
+  const pendingCursor = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (pendingCursor.current !== null) {
+      composerRef.current?.setSelectionRange(pendingCursor.current, pendingCursor.current);
+      pendingCursor.current = null;
+    }
+  }, [draft]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState("Enter a room or make a new one.");
   const [notifyOnMessage, setNotifyOnMessage] = useState(true);
@@ -222,7 +230,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
     event.preventDefault();
     const safeSlug = loadedSlug || normalizedSlug || randomSlug();
     const safeName = displayName.trim() || "Guest";
-    const body = draft.trim();
+    const body = convertEmoticons(draft.trim(), true);
     if (isSending || (!body && !attachment)) return;
 
     setIsSending(true);
@@ -290,7 +298,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
           <div className="flex items-center gap-3">
             <div>
               <p className="text-base font-black">Chat</p>
-              <p className="text-sm text-slate-400">Shared chat rooms · Build 10</p>
+              <p className="text-sm text-slate-400">Shared chat rooms · Build 11</p>
             </div>
           </div>
           <button
@@ -440,7 +448,19 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
                   ref={composerRef}
                   readOnly={isSending}
                   value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
+                  onChange={(event) => {
+                    const input = event.currentTarget;
+                    const raw = input.value;
+                    pendingCursor.current = null;
+                    if ((event.nativeEvent as InputEvent).isComposing) { setDraft(raw); return; }
+                    const cursor = input.selectionStart ?? raw.length;
+                    const converted = convertEmoticons(raw);
+                    setDraft(converted);
+                    if (converted !== raw) {
+                      const nextCursor = convertEmoticons(raw.slice(0, cursor)).length;
+                      pendingCursor.current = nextCursor;
+                    }
+                  }}
                   placeholder="Type a message..."
                   className="h-12 w-full rounded-md border border-white/15 bg-slate-950/70 px-3 text-base text-white outline-none ring-cyan-300/40 focus:ring-4"
                   maxLength={2000}

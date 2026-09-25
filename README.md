@@ -1,3 +1,7 @@
+# Build 11: automatic emoticons
+
+Standalone emoticons convert after Space or Send: :) :D :P ;) :( :O :/ :| and <3, including common nose variants. URLs stay unchanged. No new configuration or database changes.
+
 # Build 10: GIF search and image links
 
 See GIF-SETUP.md to add KLIPY_API_KEY as a Cloudflare runtime secret. No database changes.
