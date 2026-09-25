@@ -2,7 +2,10 @@
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
 
+export { VideoRoom } from "./video-room";
+
 interface Env {
+  VIDEO_ROOMS: DurableObjectNamespace;
   ASSETS: Fetcher;
   DB: D1Database;
   IMAGES: {
@@ -28,6 +31,13 @@ interface ExecutionContext {
 const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+
+    const call = url.pathname.match(/^\/api\/calls\/([a-z0-9-]{1,60})(?:\/ice)?$/);
+    if (call) {
+      if (request.headers.get("Origin") !== url.origin) return new Response("Origin not allowed", {status:403});
+      if (!env.VIDEO_ROOMS) return new Response("Video binding missing. Deploy the complete Build 12 configuration.", {status:503});
+      return env.VIDEO_ROOMS.get(env.VIDEO_ROOMS.idFromName(call[1])).fetch(request);
+    }
 
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
