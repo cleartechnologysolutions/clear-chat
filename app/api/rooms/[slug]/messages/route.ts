@@ -1,3 +1,5 @@
+import {env} from "cloudflare:workers";
+import {presenceList} from "../../../../../worker/presence";
 import { boundedBody, imageBucket, imageType, MAX_IMAGE, messageImage } from "../../../../chat-images";
 import { and, desc, eq, gt } from "drizzle-orm";
 import { getDb } from "../../../../../db";
@@ -47,23 +49,13 @@ export async function GET(
     const afterId = Number(url.searchParams.get("after") || "0");
     const db = getDb();
 
-    const rows =
-      afterId > 0
-        ? await db
-            .select()
-            .from(messages)
-            .where(and(eq(messages.roomSlug, slug), gt(messages.id, afterId)))
-            .orderBy(desc(messages.id))
-            .limit(100)
-        : await db
-            .select()
-            .from(messages)
-            .where(eq(messages.roomSlug, slug))
-            .orderBy(desc(messages.id))
-            .limit(100);
+    const rows = await db.select().from(messages).where(eq(messages.roomSlug,slug)).orderBy(desc(messages.id)).limit(100);
+    const events=await env.DB.prepare('SELECT * FROM chat_events WHERE room=? ORDER BY id DESC LIMIT 100').bind(slug).all<{id:number;name:string;kind:string;created_at:number}>();
 
     return Response.json({
       room: slug,
+      participants: await presenceList(env.DB,slug),
+      events: events.results.map(e=>({id:-e.id,displayName:e.name,body:`${e.name} ${e.kind} the chat.`,kind:'system',createdAt:new Date(e.created_at).toISOString()})),
       messages: rows.reverse().map((message) => ({
         id: message.id,
         roomSlug: message.roomSlug,
@@ -127,6 +119,7 @@ export async function POST(
       throw error;
     }
 
+    await env.DB.prepare('INSERT OR IGNORE INTO chat_participants(room,name,last_seen) VALUES(?,?,0)').bind(slug,displayName).run();
     return Response.json({
       message: {
         id: message.id,

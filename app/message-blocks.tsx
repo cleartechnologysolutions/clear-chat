@@ -13,6 +13,7 @@ export function MessageBlocks({messages,onImageLoad,onBonk,viewerName,bonkBusy=f
   },[]);
   const colors=authorColors(messages);
   return <>{groupMessages(messages).map(group=>{
+    if(group.messages[0].kind==='system')return <div key={group.messages[0].id} role="status" className="py-1 text-center text-xs text-slate-400">{group.messages[0].body} <time suppressHydrationWarning>{new Date(group.messages[0].createdAt).toLocaleTimeString()}</time></div>;
     const color=colors.get(group.displayName)!;
     return <article key={group.messages[0].id} aria-label={`Messages from ${group.displayName}`} className="rounded-lg border border-white/10 border-l-[5px] p-3" style={{borderLeftColor:color,backgroundColor:color+'12'}}>
       <div className="mb-1 flex flex-wrap items-center gap-2">

@@ -1,5 +1,6 @@
 "use client";
 
+import { usePresence } from "./use-presence";
 import { useBonks } from "./use-bonks";
 import { useMessageSound } from "./message-sound";
 import { VideoCall } from "./video-call";
@@ -19,14 +20,9 @@ function cleanSlug(value: string) {
     .slice(0, 60);
 }
 
-function randomSlug() {
-  const alphabet = "abcdefghjkmnpqrstuvwxyz23456789";
-  return Array.from({ length: 4 }, () =>
-    alphabet[Math.floor(Math.random() * alphabet.length)]
-  ).join("");
-}
-
+type Participant = {name:string;online:boolean;lastSeen:number};
 type ChatMessage = {
+  kind?:string;
   id: number;
   roomSlug: string;
   displayName: string;
@@ -36,6 +32,8 @@ type ChatMessage = {
 };
 
 type MessagesResponse = {
+  participants?:Participant[];
+  events?:ChatMessage[];
   messages?: ChatMessage[];
   message?: ChatMessage;
   error?: string;
@@ -84,7 +82,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
   const fetchedId = useRef(0);
   const polling = useRef(false);
   const roomRequest = useRef(0);
-  const composerRef = useRef<HTMLInputElement | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const [draft, setDraft] = useState("");
   const pendingCursor = useRef<number | null>(null);
   useLayoutEffect(() => {
@@ -93,8 +91,9 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
       pendingCursor.current = null;
     }
   }, [draft]);
+  const [participants,setParticipants] = useState<Participant[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [status, setStatus] = useState("Enter a room or make a new one.");
+  const [status, setStatus] = useState("Enter an existing room code.");
   const [notifyOnMessage, setNotifyOnMessage] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [pickerTab, setPickerTab] = useState("emoji");
@@ -164,21 +163,21 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
         cache: "no-store",
       });
       const data = (await response.json()) as MessagesResponse;
-      if (!response.ok) throw new Error(data.error || "Load failed.");
+      if (!response.ok) {
+        if (response.status === 404 && requestId === roomRequest.current) {setLoadedSlug('');loadedSlugRef.current='';setMessages([]);}
+        throw new Error(data.error || "Load failed.");
+      }
 
       if (requestId !== roomRequest.current || (quiet && loadedSlugRef.current !== safeSlug)) return;
       if (quiet && sendingRef.current) return;
-      const incoming = data.messages || [];
+      setParticipants(data.participants || []);
+      const incoming = [...(data.messages || []),...(data.events || [])].sort((a,b)=>Date.parse(a.createdAt)-Date.parse(b.createdAt) || a.id-b.id);
       const fresh = incoming.filter(message=>!seenIds.current.has(message.id));
       for(const message of incoming) seenIds.current.add(message.id);
       fetchedId.current = Math.max(fetchedId.current,...incoming.map(message=>message.id));
-      if (quiet && incoming.length === 0) return;
 
-      setMessages((current) => {
-        if (!quiet) return incoming;
-        const existing = new Set(current.map((message) => message.id));
-        return [...current, ...incoming.filter((message) => !existing.has(message.id))].sort((a,b)=>a.id-b.id);
-      });
+
+      setMessages(incoming);
 
       setLoadedSlug(safeSlug);
       setSlug(safeSlug);
@@ -193,14 +192,20 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
     } finally { if(quiet) polling.current=false; }
   }, [sound.play]);
 
+  usePresence(loadedSlug,displayName,()=>{
+    roomRequest.current++;setLoadedSlug('');loadedSlugRef.current='';setMessages([]);setParticipants([]);
+    setStatus('You were removed or the room closed. Open the room again to rejoin if it is available.');
+  });
+
   useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
     const pathSlug = cleanSlug(window.location.pathname.replace(/^\/+/, ""));
-    const startingSlug = pathSlug || randomSlug();
+    const startingSlug = pathSlug;
     const storedName = window.localStorage.getItem("clear-chat-name") || "";
     setDisplayName(storedName);
-    void loadMessages(startingSlug);
+    if (startingSlug) void loadMessages(startingSlug);
+    else setStatus("Enter a room code supplied by the admin.");
   }, [loadMessages]);
 
   useEffect(() => {
@@ -246,7 +251,9 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
     event.preventDefault();
     if (isSending) return;
     setAttachment(null);
-    const safeSlug = normalizedSlug || randomSlug();
+    const safeSlug = normalizedSlug;
+    if (!safeSlug) { setStatus("Enter an existing room code."); return; }
+    setLoadedSlug("");
     window.history.pushState(null, "", `/${safeSlug}`);
     setMessages([]);
     void loadMessages(safeSlug);
@@ -254,7 +261,8 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
 
   async function sendMessage(event: FormEvent) {
     event.preventDefault();
-    const safeSlug = loadedSlug || normalizedSlug || randomSlug();
+    const safeSlug = loadedSlug;
+    if (!safeSlug) { setStatus("Open an existing room first."); return; }
     const safeName = displayName.trim() || "Guest";
     const body = convertEmoticons(draft.trim(), true);
     if (isSending || (!body && !attachment)) return;
@@ -278,7 +286,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
 
       if (data.message) {
         seenIds.current.add(data.message.id);
-        setMessages((current) => current.some(item => item.id === data.message!.id) ? current : [...current, data.message as ChatMessage].sort((a,b)=>a.id-b.id));
+        setMessages((current) => current.some(item => item.id === data.message!.id) ? current : [...current, data.message as ChatMessage].sort((a,b)=>Date.parse(a.createdAt)-Date.parse(b.createdAt) || a.id-b.id));
       }
       setDraft("");
       setAttachment(null);
@@ -306,15 +314,6 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
     }
   }
 
-  function newRoom() {
-    if (isSending) return;
-    setAttachment(null);
-    const nextSlug = randomSlug();
-    window.history.pushState(null, "", `/${nextSlug}`);
-    setMessages([]);
-    void loadMessages(nextSlug);
-  }
-
   function addEmoji(emoji: string) {
     setDraft((current) => `${current}${emoji}`);
     setShowEmojiPicker(false);
@@ -327,24 +326,24 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
           <div className="flex items-center gap-3">
             <div>
               <p className="text-base font-black">Chat</p>
-              <p className="text-sm text-slate-400">Shared chat rooms · Build 17</p>
+              <p className="text-sm text-slate-400">Shared chat rooms · Build 20</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={newRoom}
-            className="rounded-md border border-cyan-300/40 bg-cyan-300/10 px-4 py-2 text-sm font-bold text-cyan-100 hover:bg-cyan-300/20"
-          >
-            New room
-          </button>
+          <a href="/admin" className="text-sm text-slate-300 underline">Admin</a>
         </header>
 
         <section className="grid min-h-0 flex-1 grid-rows-[minmax(0,0.85fr)_minmax(0,1.15fr)] gap-5 lg:grid-cols-[360px_1fr] lg:grid-rows-1">
           <aside className="chat-scroll min-h-0 overflow-y-auto rounded-lg border border-white/10 bg-white/[.05] p-5 shadow-2xl shadow-black/25">
-            <VideoCall key={loadedSlug} room={loadedSlug} name={displayName} />
+            {loadedSlug && <section className="mb-5 rounded-lg border border-white/15 p-3" aria-label="Participants">
+              <h2 className="font-bold">People · {participants.filter(p=>p.online).length} online</h2>
+              <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto">{participants.map(p=><li key={p.name} className="flex justify-between gap-3 text-sm"><span className="break-all">{p.name}</span><span className={p.online?'text-cyan-200':'text-slate-400'}>{p.online?'● Online':'○ Offline'}</span></li>)}</ul>
+              {!participants.length && <p className="mt-2 text-sm text-slate-400">Joining…</p>}
+              <button type="button" className="mt-3 text-sm underline" onClick={()=>{roomRequest.current++;setLoadedSlug('');loadedSlugRef.current='';setMessages([]);setParticipants([]);setStatus('You left the room. Open it again to rejoin.');}}>Leave room</button>
+            </section>}
+            {loadedSlug ? <VideoCall key={loadedSlug} room={loadedSlug} name={displayName} /> : null}
             <h1 className="text-3xl font-black tracking-tight">Chat Room</h1>
             <p className="mt-3 text-sm leading-6 text-slate-300">
-              Give someone a room URL like /abcd. Anyone with the link can join and send short messages.
+              Enter a room code or open a link supplied by the admin. Only admins can create rooms.
             </p>
 
             <form onSubmit={openRoom} className="mt-6 space-y-3">
@@ -372,6 +371,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
               </label>
               <input
                 id="displayName"
+                maxLength={32}
                 value={displayName}
                 onChange={(event) => setDisplayName(event.target.value)}
                 placeholder="Guest"
@@ -422,7 +422,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
             <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 border-b border-white/10 p-4">
               <div>
                 <p className="text-sm font-bold uppercase tracking-[.14em] text-cyan-200">
-                  /{loadedSlug || normalizedSlug || "new"}
+                  {loadedSlug ? `/${loadedSlug}` : "Open a room"}
                 </p>
                 <p className="text-sm text-slate-400">{messages.length} messages</p>
               </div>
@@ -466,8 +466,16 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
                     ))}</div>}
                   </div>
                 ) : null}
-                <input
+                <textarea
                   ref={composerRef}
+                  rows={2}
+                  aria-label="Message"
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) {
+                      event.preventDefault();
+                      if (!isSending && !event.repeat) event.currentTarget.form?.requestSubmit();
+                    }
+                  }}
                   readOnly={isSending}
                   value={draft}
                   onChange={(event) => {
@@ -483,8 +491,8 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
                       pendingCursor.current = nextCursor;
                     }
                   }}
-                  placeholder="Type a message..."
-                  className="h-12 w-full rounded-md border border-white/15 bg-slate-950/70 px-3 text-base text-white outline-none ring-cyan-300/40 focus:ring-4"
+                  placeholder="Type a message… Enter to send, Shift+Enter for a new line"
+                  className="h-20 max-h-40 min-h-12 resize-y w-full rounded-md border border-white/15 bg-slate-950/70 px-3 py-2 text-base text-white outline-none ring-cyan-300/40 focus:ring-4"
                   maxLength={2000}
                 />
               </div>
@@ -498,7 +506,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
               </button>
               <button
                 type="submit"
-                disabled={isSending || (!draft.trim() && !attachment)}
+                disabled={!loadedSlug || isSending || (!draft.trim() && !attachment)}
                 className="order-2 h-12 rounded-md bg-white px-6 sm:order-none text-sm font-black text-slate-950 hover:bg-cyan-100 disabled:opacity-60"
               >
                 {isSending ? "Sending" : "Send"}

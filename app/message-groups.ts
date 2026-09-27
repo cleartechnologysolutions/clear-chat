@@ -1,4 +1,5 @@
 export type GroupableMessage = {
+  kind?: string;
   id: number;
   displayName: string;
   body: string;
@@ -13,6 +14,7 @@ export function authorColors(messages: GroupableMessage[]) {
   const assigned = new Map<string, string>();
   const used = new Set<string>();
   for (const message of messages) {
+    if(message.kind==='system')continue;
     const name=message.displayName;
     if(assigned.has(name))continue;
     let color=COLORS[assigned.size] || '';
@@ -34,7 +36,7 @@ export function groupMessages<T extends GroupableMessage>(messages: T[]) {
   const groups: {displayName:string; messages:T[]}[] = [];
   for (const message of messages) {
     const previous = groups.at(-1);
-    if (previous?.displayName === message.displayName) previous.messages.push(message);
+    if (previous && previous.messages[0].kind !== 'system' && message.kind !== 'system' && previous.displayName === message.displayName) previous.messages.push(message);
     else groups.push({displayName:message.displayName,messages:[message]});
   }
   return groups;

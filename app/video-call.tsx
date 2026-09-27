@@ -72,6 +72,7 @@ export function VideoCall({room,name}:{room:string;name:string}) {
      s.refresh=setInterval(()=>{ice(s).catch(()=>{if(s.active)setWarning('Relay credentials could not refresh. Rejoin if the connection drops.');});},30*60*1000);
      send(s,{type:'ready'});setStatus('Waiting for someone to join video in this room…');return;
     }
+    if(d.type==='room-deleted'){end('Room deleted by admin.');return;}
     if(d.type==='peer-left'){s.pc?.close();s.pc=undefined;s.callId=undefined;s.pending=[];clearTimeout(s.timeout);clearTimeout(s.disconnected);setRemote(null);setStatus('Other participant left. Waiting for someone to join…');return;}
     if(d.type==='start'){
      s.callId=d.callId;setPeerName(d.name||'Other participant');setStatus('Connecting…');const pc=makePeer(s);

@@ -12,6 +12,7 @@ type AdminMessage = {
 };
 
 type AdminRoom = {
+  participants?:Array<{name:string;online:boolean}>;
   roomSlug: string;
   latestAt: string;
   messageCount: number;
@@ -29,6 +30,7 @@ type AdminActionResponse = {
 };
 
 export function AdminMessages() {
+  const [newRoom, setNewRoom] = useState("");
   const [password, setPassword] = useState("");
   const [rooms, setRooms] = useState<AdminRoom[]>([]);
   const [selectedRoom, setSelectedRoom] = useState("");
@@ -77,6 +79,26 @@ export function AdminMessages() {
     }
   }
 
+  async function removeParticipant(name:string) {
+    if(!activeRoom || !confirm(`Remove ${name} from /${activeRoom.roomSlug} and delete all their messages and images? They can rejoin.`))return;
+    setIsLoading(true);
+    try {
+      const r=await fetch('/api/admin/messages',{method:'DELETE',headers:{Authorization:`Bearer ${password}`,'Content-Type':'application/json'},body:JSON.stringify({action:'remove-participant',roomSlug:activeRoom.roomSlug,name})});
+      const d=await r.json() as {error?:string};if(!r.ok)throw new Error(d.error||'Remove failed.');await loadMessages();
+    }catch(error){setStatus(error instanceof Error?error.message:'Remove failed.');}finally{setIsLoading(false);}
+  }
+
+  async function createRoom(event: FormEvent) {
+    event.preventDefault(); setIsLoading(true);
+    try {
+      const response = await fetch('/api/admin/messages', {method:'POST',headers:{Authorization:`Bearer ${password}`,'Content-Type':'application/json'},body:JSON.stringify({roomSlug:newRoom})});
+      const data = await response.json() as {error?:string;roomSlug?:string};
+      if (!response.ok) throw new Error(data.error || 'Create failed.');
+      await loadMessages();setSelectedRoom(data.roomSlug || '');setNewRoom('');setStatus(`Created /${data.roomSlug}. Use Open room to share its link.`);
+    } catch(error) {setStatus(error instanceof Error ? error.message : 'Create failed.');}
+    finally {setIsLoading(false);}
+  }
+
   async function runAdminAction(action: "cleanup-old" | "delete-room") {
     if (action === "delete-room" && !activeRoom) return;
 
@@ -84,7 +106,7 @@ export function AdminMessages() {
     const confirmed =
       action === "cleanup-old"
         ? window.confirm("Delete all chat messages older than 30 days?")
-        : window.confirm(`Delete every message in /${roomSlug}?`);
+        : window.confirm(`Delete room /${roomSlug} and all its messages and images? Its link will stop working.`);
 
     if (!confirmed) return;
 
@@ -137,7 +159,7 @@ export function AdminMessages() {
           <aside className="min-h-0 overflow-y-auto rounded-lg border border-white/10 bg-white/[.05] p-5 shadow-2xl shadow-black/25">
             <h1 className="text-3xl font-black tracking-tight">Admin</h1>
             <p className="mt-3 text-sm leading-6 text-slate-300">
-              Read saved chat rooms and messages.
+              Create and delete rooms, and read saved messages.
             </p>
 
             <form onSubmit={loadMessages} className="mt-6 space-y-3">
@@ -160,12 +182,24 @@ export function AdminMessages() {
               </button>
             </form>
 
+            {hasLoaded && <form onSubmit={createRoom} className="mt-5 space-y-3">
+              <label htmlFor="newRoom" className="block text-sm font-bold">Create room</label>
+              <input id="newRoom" value={newRoom} onChange={event=>setNewRoom(event.target.value)} maxLength={60} placeholder="Room code, e.g. team" required className="h-11 w-full rounded-md border border-white/15 bg-slate-950/70 px-3" />
+              <button disabled={isLoading || !newRoom.trim()} className="h-11 w-full rounded-md bg-cyan-400 font-bold text-slate-950 disabled:opacity-50">Create room</button>
+            </form>}
+
             <div className="mt-5 rounded-md border border-white/10 bg-slate-950/45 p-3">
               <p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Summary</p>
               <p className="mt-2 text-sm text-slate-200">{rooms.length} rooms</p>
               <p className="mt-1 text-sm text-slate-400">{totalMessages} recent messages</p>
             </div>
 
+            {activeRoom && <section className="mt-4 rounded-md border border-white/15 p-3">
+              <h2 className="font-bold">People in /{activeRoom.roomSlug}</h2>
+              <p className="mt-1 text-xs text-slate-400">Status updates when you refresh admin.</p>
+              {(activeRoom.participants || []).map(p=><div key={p.name} className="mt-3 flex items-center justify-between gap-2 text-sm"><span>{p.name}<small className="block text-slate-400">{p.online?'● Online':'○ Offline'}</small></span><button disabled={isLoading} onClick={()=>removeParticipant(p.name)} className="rounded border border-red-300/40 px-2 py-1 text-red-200">Remove + history</button></div>)}
+              <button disabled={isLoading} onClick={()=>void loadMessages()} className="mt-3 text-sm underline">Refresh</button>
+            </section>}
             <div className="mt-3 space-y-2">
               <button
                 type="button"

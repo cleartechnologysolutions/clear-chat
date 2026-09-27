@@ -1,3 +1,36 @@
+# Build 20: multiline messages
+
+Shift+Enter inserts a line break. Enter sends the message and keeps focus in the message box. The message box supports multiple lines, and sent messages preserve line breaks. IME composition does not trigger sending. No settings or database changes; upload and redeploy.
+
+# Build 19: participants and join/leave notices
+
+Upload the complete ZIP and redeploy. Existing D1 and VIDEO_ROOMS bindings are reused; tables are created automatically on the first request. No manual SQL or new secrets.
+
+- **People** lists current and past participants in this room, with explicit Online / Offline labels. Previously saved message authors are imported as offline participants once.
+- Presence checks in every 20 seconds; messages and the participant list refresh every 2.5 seconds. Closing/leaving sends a best-effort leave notification. Network loss, sleeping devices, or suspended tabs time out after roughly 90 seconds. Online means the page is checking in, not that the person is reading it.
+- Join and leave notices appear chronologically inside the message window. Multiple tabs with the exact same name count as one person: first session joins, last session leaves.
+- **Leave room** disconnects without deleting history. Open the room again to rejoin.
+- In `/admin`, select a room and use **Remove + history** beside a participant. This deletes that name's messages, uploaded images, participant entry, and join/leave notices in the selected room. Other participants and other rooms are unaffected. Open clients refresh their displayed history automatically.
+- Removed active sessions stop checking in and ask the visitor to open the room again. They are not banned; a fresh join is allowed. An old heartbeat cannot immediately restore a removed entry. If image cleanup fails, the offline entry remains in admin so deletion can be retried.
+- Names are not authenticated accounts. Identical names share a participant entry and removal applies to all messages under that name. Already downloaded data cannot be erased from another person's device.
+- Admin presence is a snapshot: use its Refresh button for current status. Chat shows the latest 100 messages and 100 join/leave notices; full stored message cleanup remains available in admin.
+
+Validation: production build, TypeScript, local Worker/D1/Durable Object tests for join/leave, multiple tabs, timeout, removal, image cleanup, rejoining, and existing room restrictions. Browser visual testing was unavailable in this execution environment.
+
+# Build 18: admin-managed rooms
+
+Upload and redeploy the complete project. No new Cloudflare settings or manual SQL are required for an existing working Chat installation.
+
+Visit `/admin`, unlock with your existing admin password, enter a room code, and click **Create room**. Use **Open room** to get its shareable URL. Empty rooms appear in admin immediately. Visitors can only open existing rooms; public random room creation has been removed.
+
+The first room/admin request creates a room registry and imports all room codes that currently have saved messages. This import happens once, transactionally. Previously empty rooms cannot be recovered because older builds never stored them; create those in admin if needed.
+
+**Delete selected room** disables the room, ends active video signaling sessions, removes its messages and stored images, and invalidates its link. If image cleanup fails, the room remains disabled and visible in admin so you can retry deletion. Admin can recreate a deleted code as a fresh empty room. **Clean old messages** removes old messages but keeps the rooms.
+
+Room checks are enforced on the server for text, image uploads/downloads, bonks, and video/relay endpoints. A database trigger also blocks message inserts during deletion. Links remain shareable: this controls room creation, not membership or user identity. An already-downloaded message or image cannot be removed from someone's device.
+
+## Previous releases
+
 # Build 17: Escape, bonks, and contained scrolling
 
 - Escape closes the emoji/GIF picker and returns focus to the message box. It also closes participant action menus.
