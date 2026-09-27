@@ -1,3 +1,4 @@
+import { ensureRooms, roomExists } from "./rooms";
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
@@ -32,6 +33,22 @@ const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
+    // Protect every room transport before forwarding to the app or Durable Object.
+    const roomPath = url.pathname.match(/^\/api\/(?:rooms|calls|bonks)\/([^/]+)/);
+    if (roomPath || url.pathname === '/api/admin/messages') {
+      try {
+        await ensureRooms(env.DB);
+        if (roomPath && !await roomExists(env.DB, roomPath[1]))
+          return Response.json({error:'Room unavailable. Ask the admin for an existing room link.'}, {status:404,headers:{'Cache-Control':'no-store'}});
+      } catch {
+        return Response.json({error:'Room storage is unavailable. Please try again.'}, {status:503});
+      }
+    }
+    const presence = url.pathname.match(/^\/api\/rooms\/([a-z0-9-]{1,60})\/presence$/);
+    if(presence){
+      if(request.method!=='GET' && request.headers.get('Origin')!==url.origin)return new Response('Origin not allowed',{status:403});
+      return env.VIDEO_ROOMS.get(env.VIDEO_ROOMS.idFromName('presence:'+presence[1])).fetch(request);
+    }
     const bonks = url.pathname.match(/^\/api\/bonks\/([a-z0-9-]{1,60})$/);
     if (bonks) {
       if (request.headers.get("Origin") !== url.origin) return new Response("Origin not allowed", {status:403});

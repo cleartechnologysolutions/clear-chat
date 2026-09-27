@@ -2,7 +2,7 @@ import {Miniflare} from 'miniflare';
 import assert from 'node:assert/strict';
 import {fileURLToPath} from 'node:url';
 const root=fileURLToPath(new URL('../dist/server',import.meta.url));
-const mf=new Miniflare({name:'chat',rootPath:root,modulesRoot:root,modules:true,scriptPath:root+'/index.js',modulesRules:[{type:'ESModule',include:['**/*.js']}],compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],port:0,durableObjects:{VIDEO_ROOMS:{className:'VideoRoom',useSQLite:true}},serviceBindings:{ASSETS:async()=>new Response(null,{status:404})}});
+const mf=new Miniflare({name:'chat',rootPath:root,modulesRoot:root,modules:true,scriptPath:root+'/index.js',modulesRules:[{type:'ESModule',include:['**/*.js']}],compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],port:0,d1Databases:['DB'],durableObjects:{VIDEO_ROOMS:{className:'VideoRoom',useSQLite:true}},serviceBindings:{ASSETS:async()=>new Response(null,{status:404})}});
 const sockets=[];
 async function join(room='test'){
  const r=await mf.dispatchFetch(`http://chat.test/api/calls/${room}`,{headers:{Upgrade:'websocket',Origin:'http://chat.test'}});assert.equal(r.status,101);
@@ -10,6 +10,9 @@ async function join(room='test'){
  return {ws,next:()=>queue.length?Promise.resolve(queue.shift()):new Promise(resolve=>waits.push(resolve)),send:d=>ws.send(JSON.stringify(d))};
 }
 try {
+ const db=await mf.getD1Database('DB');
+ await db.exec('CREATE TABLE messages (id INTEGER PRIMARY KEY, room_slug TEXT, created_at INTEGER)');
+ await db.exec("INSERT INTO messages VALUES (1, 'test', 1), (2, 'other', 1)");
  const forbidden=await mf.dispatchFetch('http://chat.test/api/calls/test',{headers:{Upgrade:'websocket',Origin:'https://elsewhere.test'}});assert.equal(forbidden.status,403);
  const a=await join();const first=await a.next();assert.equal(first.type,'joined');
  const ice=await mf.dispatchFetch('http://chat.test/api/calls/test/ice',{method:'POST',headers:{Origin:'http://chat.test',Authorization:`Bearer ${first.token}`}});assert.equal(ice.status,200);assert.equal((await ice.json()).relay,false);

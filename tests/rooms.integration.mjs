@@ -1,0 +1,32 @@
+import {Miniflare} from 'miniflare';
+import assert from 'node:assert/strict';
+import {fileURLToPath} from 'node:url';
+const root=fileURLToPath(new URL('../dist/server',import.meta.url));
+const mf=new Miniflare({name:'chat',rootPath:root,modulesRoot:root,modules:true,scriptPath:root+'/index.js',modulesRules:[{type:'ESModule',include:['**/*.js']}],compatibilityDate:'2026-05-15',compatibilityFlags:['nodejs_compat'],port:0,bindings:{ADMIN_PASSWORD:'test-password'},d1Databases:['DB'],r2Buckets:['CHAT_IMAGES'],durableObjects:{VIDEO_ROOMS:{className:'VideoRoom',useSQLite:true}},serviceBindings:{ASSETS:async()=>new Response(null,{status:404})}});
+try {
+const db=await mf.getD1Database('DB');
+await db.exec('CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, room_slug TEXT NOT NULL, display_name TEXT NOT NULL, body TEXT NOT NULL, created_at INTEGER NOT NULL, image_key TEXT)');
+await db.prepare('INSERT INTO messages(room_slug,display_name,body,created_at) VALUES (?,?,?,?)').bind('legacy','Alice','hello',Date.now()).run();
+const origin=(await mf.ready).origin;
+const req=(path,method='GET',body,admin=false)=>mf.dispatchFetch(origin+path,{method,headers:{Origin:origin,'Content-Type':'application/json',...(admin?{Authorization:'Bearer test-password'}:{})},...(body?{body:JSON.stringify(body)}:{})});
+assert.equal((await req('/api/rooms/legacy/messages')).status,200);
+for (const path of ['/api/rooms/unknown/messages','/api/rooms/unknown/images/1','/api/bonks/unknown','/api/calls/unknown','/api/calls/unknown/ice']) assert.equal((await req(path)).status,404,path);
+assert.equal((await req('/api/rooms/unknown/messages','POST',{body:'bypass'})).status,404);
+assert.equal((await req('/api/admin/messages','POST',{roomSlug:'team'})).status,401);
+assert.equal((await req('/api/admin/messages','POST',{roomSlug:'admin'},true)).status,400);
+assert.equal((await req('/api/admin/messages','POST',{roomSlug:'team'},true)).status,201);
+assert.equal((await req('/api/admin/messages','POST',{roomSlug:'team'},true)).status,409);
+let data=await (await req('/api/admin/messages','GET',null,true)).json();assert.equal(data.rooms.length,2);assert.equal(data.rooms.find(r=>r.roomSlug==='team').messageCount,0);
+assert.equal((await req('/api/rooms/team/messages','POST',{displayName:'Bob',body:'hello'})).status,200);
+assert.equal((await req('/api/admin/messages','DELETE',{action:'cleanup-old'},true)).status,200);
+assert.equal((await req('/api/rooms/team/messages')).status,200);
+const wsResponse=await mf.dispatchFetch(origin+'/api/calls/team',{headers:{Origin:origin,Upgrade:'websocket'}});assert.equal(wsResponse.status,101);const ws=wsResponse.webSocket;ws.accept();const closed=new Promise(resolve=>{ws.addEventListener('close',resolve);ws.addEventListener('message',event=>{if(JSON.parse(event.data).type==='room-deleted'){ws.close();resolve();}});});
+assert.equal((await req('/api/admin/messages','DELETE',{action:'delete-room',roomSlug:'team'},true)).status,200);
+await Promise.race([closed,new Promise((_,reject)=>setTimeout(()=>reject(Error('Socket not closed')),3000))]);
+assert.equal((await req('/api/rooms/team/messages','POST',{body:'recreate'})).status,404);
+assert.equal((await db.prepare("SELECT COUNT(*) n FROM messages WHERE room_slug='team'").first()).n,0);
+await assert.rejects(()=>db.prepare("INSERT INTO messages(room_slug,display_name,body,created_at) VALUES ('team','x','x',1)").run());
+assert.equal((await req('/api/admin/messages','POST',{roomSlug:'team'},true)).status,201);
+data=await (await req('/api/rooms/team/messages')).json();assert.equal(data.messages.length,0);
+console.log('PASS: legacy import, unauthorized creation, empty rooms, duplicate/reserved names, all transport gates, posting, cleanup preserves room, deletion closes video and removes messages, DB race guard, admin recreation');
+} finally {await mf.dispose();}

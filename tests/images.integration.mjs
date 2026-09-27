@@ -10,6 +10,7 @@ const fetch=async(path,options)=>{const request=new Request('http://chat.test'+p
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aGz8AAAAASUVORK5CYII=','base64');
 async function send(body='',room='demo',bytes=png){const form=new FormData();form.set('displayName','Test');form.set('body',body);form.set('image',new Blob([bytes],{type:'image/png'}),'test.png');return fetch(`/api/rooms/${room}/messages`,{method:'POST',body:form});}
 async function admin(action,roomSlug){return fetch('/api/admin/messages',{method:'DELETE',headers:{Authorization:'Bearer local-test-only','Content-Type':'application/json'},body:JSON.stringify({action,roomSlug})});}
+await fetch('/api/admin/messages',{method:'POST',headers:{Authorization:'Bearer local-test-only','Content-Type':'application/json'},body:JSON.stringify({roomSlug:'demo'})});
 let response=await send('caption');assert.equal(response.status,200,await response.clone().text());
 const message=(await response.json()).message;assert.ok(message.imageUrl);assert.equal(message.body,'caption');
 assert.deepEqual(Buffer.from(await (await fetch(message.imageUrl)).arrayBuffer()),png);
@@ -20,6 +21,7 @@ assert.equal((await send('bad','demo',Buffer.from('<svg></svg>'))).status,415);
 assert.equal((await send('large','demo',Buffer.alloc(10*1024*1024+1))).status,413);
 assert.equal((await bucket.list()).objects.length,2);
 response=await fetch('/api/rooms/demo/messages');assert.equal((await response.json()).messages.length,3);
+await fetch('/api/admin/messages',{method:'POST',headers:{Authorization:'Bearer local-test-only','Content-Type':'application/json'},body:JSON.stringify({roomSlug:'other'})});
 const other=(await (await send('keep','other')).json()).message;
 response=await admin('delete-room','demo');assert.equal(response.status,200);assert.equal((await fetch(message.imageUrl)).status,404);assert.equal((await bucket.list()).objects.length,1);
 assert.equal((await fetch(other.imageUrl)).status,200);
