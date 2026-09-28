@@ -69,11 +69,18 @@ const EMOJIS = [
 ];
 
 export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
+  const [showRoomDetails, setShowRoomDetails] = useState(!initialSlug);
   const [slug, setSlug] = useState(initialSlug || "");
   const [loadedSlug, setLoadedSlug] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [attachment, setAttachment] = useState<File | null>(null);
   const [attachmentPreview, setAttachmentPreview] = useState("");
+  useEffect(()=>{
+    const viewport=window.visualViewport;
+    const resize=()=>document.documentElement.style.setProperty('--chat-visible-height',`${viewport?.height || window.innerHeight}px`);
+    resize();viewport?.addEventListener('resize',resize);window.addEventListener('resize',resize);
+    return ()=>{viewport?.removeEventListener('resize',resize);window.removeEventListener('resize',resize);document.documentElement.style.removeProperty('--chat-visible-height');};
+  },[]);
   const sound = useMessageSound();
   const attention = useBonks(loadedSlug,displayName,sound.gong);
   const notifyRef = useRef(true);
@@ -265,11 +272,13 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
     if (!safeSlug) { setStatus("Open an existing room first."); return; }
     const safeName = displayName.trim() || "Guest";
     const body = convertEmoticons(draft.trim(), true);
-    if (isSending || (!body && !attachment)) return;
+    if (sendingRef.current || isSending || (!body && !attachment)) return;
 
     sendingRef.current=true;
     setIsSending(true);
     setStatus("Sending...");
+    const sendController=new AbortController();
+    const sendTimeout=window.setTimeout(()=>sendController.abort(),60000);
     window.localStorage.setItem("clear-chat-name", safeName);
 
     try {
@@ -280,6 +289,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
         method: "POST",
         headers: attachment ? undefined : { "Content-Type": "application/json" },
         body: attachment ? form : JSON.stringify({ displayName: safeName, body }),
+        signal:sendController.signal,
       });
       const data = (await response.json()) as MessagesResponse;
       if (!response.ok) throw new Error(data.error || "Send failed.");
@@ -295,11 +305,12 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
       window.history.pushState(null, "", `/${safeSlug}`);
       setStatus("Sent.");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Send failed.");
+      setStatus(sendController.signal.aborted ? "Send timed out. Check the chat before retrying; your attachment is still selected." : error instanceof Error ? error.message : "Send failed.");
     } finally {
+      window.clearTimeout(sendTimeout);
       sendingRef.current=false;
       setIsSending(false);
-      requestAnimationFrame(() => composerRef.current?.focus({ preventScroll: true }));
+      if (window.matchMedia("(pointer: fine)").matches) requestAnimationFrame(() => composerRef.current?.focus({ preventScroll: true }));
     }
   }
 
@@ -326,14 +337,16 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
           <div className="flex items-center gap-3">
             <div>
               <p className="text-base font-black">Chat</p>
-              <p className="text-sm text-slate-400">Shared chat rooms · Build 20</p>
+              <p className="text-sm text-slate-400">Shared chat rooms · Build 21</p>
             </div>
           </div>
+          <button type="button" className="lg:hidden rounded border border-white/20 px-3 py-2 text-sm" aria-expanded={showRoomDetails} onClick={()=>setShowRoomDetails(v=>!v)}>Room / people</button>
           <a href="/admin" className="text-sm text-slate-300 underline">Admin</a>
         </header>
 
-        <section className="grid min-h-0 flex-1 grid-rows-[minmax(0,0.85fr)_minmax(0,1.15fr)] gap-5 lg:grid-cols-[360px_1fr] lg:grid-rows-1">
-          <aside className="chat-scroll min-h-0 overflow-y-auto rounded-lg border border-white/10 bg-white/[.05] p-5 shadow-2xl shadow-black/25">
+        <section className="grid min-h-0 flex-1 grid-rows-1 gap-5 lg:grid-cols-[360px_1fr] lg:grid-rows-1">
+          <aside className={`chat-room-details chat-scroll min-h-0 overflow-y-auto rounded-lg border border-white/10 bg-white/[.05] p-5 shadow-2xl shadow-black/25 ${showRoomDetails ? "details-open" : ""}`}>
+            <button type="button" className="mb-3 rounded border border-white/20 px-3 py-2 lg:hidden" onClick={()=>setShowRoomDetails(false)}>Back to chat</button>
             {loadedSlug && <section className="mb-5 rounded-lg border border-white/15 p-3" aria-label="Participants">
               <h2 className="font-bold">People · {participants.filter(p=>p.online).length} online</h2>
               <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto">{participants.map(p=><li key={p.name} className="flex justify-between gap-3 text-sm"><span className="break-all">{p.name}</span><span className={p.online?'text-cyan-200':'text-slate-400'}>{p.online?'● Online':'○ Offline'}</span></li>)}</ul>
@@ -441,15 +454,15 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
               </div>
             </div>
 
-            <form onSubmit={sendMessage} className="relative flex shrink-0 flex-wrap gap-3 border-t border-white/10 p-4" onPaste={event=>{const item=Array.from(event.clipboardData.items).find(item=>item.kind==='file' && item.type.startsWith('image/'));if(item){event.preventDefault();chooseImage(item.getAsFile() || undefined);}}}>
-              {draft.includes("https://") && <div className="max-h-36 w-full overflow-y-auto"><GifMessage body={draft} previewOnly/></div>}
-              {attachmentPreview && <div className="flex w-full items-center gap-3 rounded border border-cyan-300/20 bg-slate-950/60 p-2">
+            <form onSubmit={sendMessage} className="chat-composer relative flex shrink-0 flex-wrap gap-3 border-t border-white/10 p-4" onPaste={event=>{const item=Array.from(event.clipboardData.items).find(item=>item.kind==='file' && item.type.startsWith('image/'));if(item){event.preventDefault();chooseImage(item.getAsFile() || undefined);}}}>
+              {draft.includes("https://") && <div className="composer-preview max-h-36 w-full overflow-y-auto"><GifMessage body={draft} previewOnly/></div>}
+              {attachmentPreview && <div className="composer-attachment flex w-full items-center gap-3 rounded border border-cyan-300/20 bg-slate-950/60 p-2">
                 <img src={attachmentPreview} alt="Image ready to send" className="h-16 max-w-32 rounded object-contain" />
                 <span className="min-w-0 flex-1 truncate text-sm">{attachment?.name}</span>
                 <button type="button" disabled={isSending} onClick={()=>setAttachment(null)} className="px-3 py-2 text-sm">Remove attachment</button>
               </div>}
-              <label className="order-2 cursor-pointer rounded border sm:order-none border-white/20 px-3 py-3 text-sm">Attach image<input aria-label="Attach image" type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={isSending} className="sr-only" onChange={event=>{chooseImage(event.target.files?.[0]);event.target.value='';}} /></label>
-              <div className="relative order-1 min-w-0 basis-full sm:order-none sm:flex-1 sm:basis-0">
+              <label className="composer-attach order-2 cursor-pointer rounded border sm:order-none border-white/20 px-3 py-3 text-sm">Attach image<input aria-label="Attach image" type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={isSending} className="sr-only" onChange={event=>{chooseImage(event.target.files?.[0]);event.target.value='';}} /></label>
+              <div className="composer-input relative order-1 min-w-0 basis-full sm:order-none sm:flex-1 sm:basis-0">
                 {showEmojiPicker ? (
                   <div className="absolute bottom-14 left-0 z-10 w-[min(22rem,80vw)] max-w-sm rounded-lg border border-white/15 bg-slate-950 p-3 shadow-2xl shadow-black/40">
                     <div className="mb-3 flex gap-4"><button type="button" onClick={()=>setPickerTab("emoji")} className={pickerTab==="emoji"?"text-cyan-300":""}>Emoji</button><button type="button" onClick={()=>setPickerTab("gif")} className={pickerTab==="gif"?"text-cyan-300":""}>GIFs</button><button type="button" className="ml-auto" onClick={()=>setShowEmojiPicker(false)} aria-label="Close picker">×</button></div>
@@ -499,7 +512,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
               <button
                 type="button"
                 onClick={() => setShowEmojiPicker((current) => !current)}
-                className="order-2 h-12 rounded-md border border-white/15 px-4 text-xl sm:order-none text-slate-100 hover:bg-white/10"
+                className="composer-emoji order-2 h-12 rounded-md border border-white/15 px-4 text-xl sm:order-none text-slate-100 hover:bg-white/10"
                 aria-label="Open emoji picker"
               >
                 😀
@@ -507,10 +520,11 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
               <button
                 type="submit"
                 disabled={!loadedSlug || isSending || (!draft.trim() && !attachment)}
-                className="order-2 h-12 rounded-md bg-white px-6 sm:order-none text-sm font-black text-slate-950 hover:bg-cyan-100 disabled:opacity-60"
+                className="composer-send order-2 h-12 rounded-md bg-white px-6 sm:order-none text-sm font-black text-slate-950 hover:bg-cyan-100 disabled:opacity-60"
               >
                 {isSending ? "Sending" : "Send"}
               </button>
+            <p role="status" aria-live="polite" className="composer-status w-full text-xs text-slate-200">{status}</p>
             </form>
           </section>
         </section>
