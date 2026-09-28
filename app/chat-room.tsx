@@ -291,7 +291,14 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
         body: attachment ? form : JSON.stringify({ displayName: safeName, body }),
         signal:sendController.signal,
       });
-      const data = (await response.json()) as MessagesResponse;
+      const responseText=await response.text();
+      let data: MessagesResponse;
+      try { data=JSON.parse(responseText) as MessagesResponse; }
+      catch {
+        if(response.status===413)throw new Error("Upload rejected as too large. Images must be 10 MB or smaller. Check that Chat Build 22 is deployed.");
+        throw new Error(`Send returned an unexpected response (HTTP ${response.status}). Your draft is kept; check the chat before retrying.`);
+      }
+
       if (!response.ok) throw new Error(data.error || "Send failed.");
 
       if (data.message) {
@@ -337,7 +344,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
           <div className="flex items-center gap-3">
             <div>
               <p className="text-base font-black">Chat</p>
-              <p className="text-sm text-slate-400">Shared chat rooms · Build 21</p>
+              <p className="text-sm text-slate-400">Shared chat rooms · Build 22</p>
             </div>
           </div>
           <button type="button" className="lg:hidden rounded border border-white/20 px-3 py-2 text-sm" aria-expanded={showRoomDetails} onClick={()=>setShowRoomDetails(v=>!v)}>Room / people</button>

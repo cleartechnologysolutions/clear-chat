@@ -212,3 +212,6 @@ The timeout defaults can be overridden for a controlled canary with `SITES_INSTA
 
 ## Build 21 — mobile image composer
 Mobile room details move behind Room / people. The conversation gets the full available height, including keyboard resize. Attachments use a compact preview, Send stays beside the message field, and send status is visible below it. Image-only messages remain supported. Timed-out uploads release the composer after 60 seconds and retain the attachment; check chat before retrying. Existing desktop Enter/Shift+Enter behavior is unchanged.
+
+## Build 22 — phone photo upload limit
+Raised the framework multipart inspection ceiling from 1 MiB to 11 MiB, allowing the existing API to enforce its 10 MiB image limit. Non-JSON upload errors now show their HTTP status instead of a browser JSON parsing error. Regression tests cover 2 MiB, exactly 10 MiB, and oversized files. Upload all changed files, including next.config.ts, then rebuild and redeploy.
