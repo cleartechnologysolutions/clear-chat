@@ -209,3 +209,6 @@ The timeout defaults can be overridden for a controlled canary with `SITES_INSTA
 
 - [vinext Documentation](https://github.com/cloudflare/vinext)
 - [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+
+## Build 21 — mobile image composer
+Mobile room details move behind Room / people. The conversation gets the full available height, including keyboard resize. Attachments use a compact preview, Send stays beside the message field, and send status is visible below it. Image-only messages remain supported. Timed-out uploads release the composer after 60 seconds and retain the attachment; check chat before retrying. Existing desktop Enter/Shift+Enter behavior is unchanged.
