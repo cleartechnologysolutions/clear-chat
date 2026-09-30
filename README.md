@@ -215,3 +215,16 @@ Mobile room details move behind Room / people. The conversation gets the full av
 
 ## Build 22 — phone photo upload limit
 Raised the framework multipart inspection ceiling from 1 MiB to 11 MiB, allowing the existing API to enforce its 10 MiB image limit. Non-JSON upload errors now show their HTTP status instead of a browser JSON parsing error. Regression tests cover 2 MiB, exactly 10 MiB, and oversized files. Upload all changed files, including next.config.ts, then rebuild and redeploy.
+
+## Build 23 — phone keyboard layout
+
+The mobile conversation follows the visual viewport's height and vertical offset,
+including Safari keyboard panning. Android is also asked to resize content for
+the keyboard. The main header collapses during keyboard use, messages scroll
+inside the remaining area, and attach / text / emoji / Send share a compact row.
+The text box grows to two-to-four lines (88 px cap). Room settings remain an
+explicit overlay. Build 22's 11 MB multipart inspection allowance is retained.
+
+Validation: production build, production room HTML and viewport metadata,
+and mocked keyboard resize/scroll/focus lifecycle tests. Physical iOS/Android
+keyboard rendering needs device confirmation; no phone browser was available.
