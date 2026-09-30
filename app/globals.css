@@ -166,26 +166,37 @@ html:has(.chat-viewport), body:has(.chat-viewport) {
   overscroll-behavior: none;
 }
 
-/* Build 21: keep mobile attachments and Send inside the conversation viewport. */
+/* Build 23: visual-viewport anchored chat with a compact mobile composer. */
 .chat-room-details{display:block}
+.attach-symbol{display:none}
 @media(max-width:1023px){
- .chat-viewport{height:var(--chat-visible-height,100dvh);padding:8px 8px max(8px,env(safe-area-inset-bottom))}
- .chat-viewport>div{gap:8px}
- .chat-viewport header{padding:8px 12px;gap:8px}
+ .chat-viewport{top:var(--chat-visible-top,0px);bottom:auto;height:var(--chat-visible-height,100dvh);padding:6px 6px max(6px,env(safe-area-inset-bottom));box-sizing:border-box}
+ .chat-viewport>div{gap:6px}
+ .chat-viewport header{padding:6px 10px;gap:6px}
+ .chat-viewport header p.text-sm{font-size:11px}
+ .chat-viewport>div>section{gap:0;position:relative}
+ .chat-conversation{overflow:hidden;min-height:0}
  .chat-room-details{display:none}
- .chat-room-details.details-open{display:block;position:fixed;inset:72px 8px max(8px,env(safe-area-inset-bottom));z-index:40;background:#111e30}
- .chat-viewport section>div.shrink-0{padding:8px 12px}
- .chat-composer{display:grid;grid-template-columns:48px minmax(0,1fr) 76px;gap:6px;padding:8px;}
+ .chat-room-details.details-open{display:block;position:absolute;inset:0;z-index:40;background:#111e30;padding:12px}
+ .chat-room-heading{padding:6px 10px;min-height:30px}
+ .chat-room-heading>div{display:flex;align-items:center;gap:10px}
+ .chat-room-heading p{font-size:12px}
+ .chat-messages{padding:10px;scrollbar-gutter:auto;-webkit-overflow-scrolling:touch}
+ .chat-composer{display:grid;grid-template-columns:36px minmax(0,1fr) 36px 58px;gap:4px;padding:6px;align-items:end}
  .chat-composer>*{order:initial}
- .composer-preview{grid-column:1 / -1;max-height:60px}
- .composer-attachment{grid-column:1 / -1;padding:4px;gap:8px}
- .composer-attachment img{height:44px;max-width:64px}
- .composer-attachment button{font-size:12px;padding:4px;min-height:36px}
- .composer-input{grid-column:2;min-width:0}
- .composer-input textarea{height:48px;min-height:48px;max-height:80px;resize:none}
- .composer-attach{grid-column:1 / 3;grid-row:1;min-height:36px;padding:8px;font-size:12px;width:max-content}
- .composer-emoji{grid-column:3;grid-row:1;height:36px;padding:4px;font-size:20px}
- .composer-input{grid-column:1 / 3}
- .composer-send{grid-column:3;min-width:0;padding:0 8px;align-self:start;min-height:48px;touch-action:manipulation}
- .composer-status{grid-column:1 / -1;min-height:16px;line-height:16px;overflow-wrap:anywhere}
+ .composer-preview{grid-column:1 / -1;grid-row:1;max-height:50px}
+ .composer-attachment{grid-column:1 / -1;grid-row:2;padding:4px;gap:8px}
+ .composer-attachment img{height:40px;max-width:60px}
+ .composer-attachment button{font-size:12px;padding:4px;min-height:32px}
+ .composer-input{grid-column:2;grid-row:3;min-width:0}
+ .composer-input textarea{display:block;height:44px;min-height:44px;max-height:88px;resize:none;font-size:16px;padding:10px 8px;line-height:22px}
+ .composer-attach{grid-column:1;grid-row:3;display:grid;place-items:center;height:44px;min-height:44px;width:36px;padding:0;font-size:26px;touch-action:manipulation}
+ .attach-label{display:none}.attach-symbol{display:inline}
+ .composer-emoji{grid-column:3;grid-row:3;height:44px;padding:0;font-size:22px;touch-action:manipulation}
+ .composer-send{grid-column:4;grid-row:3;height:44px;min-height:44px;min-width:0;padding:0 6px;touch-action:manipulation}
+ .composer-status{grid-column:1 / -1;grid-row:4;min-height:14px;max-height:32px;line-height:16px;overflow:auto;overflow-wrap:anywhere}
+ .chat-picker{position:absolute;left:-36px;right:auto;bottom:52px;width:calc(100vw - 24px);max-width:none;max-height:calc(var(--chat-visible-height,100dvh) - 120px);overflow:auto}
+ html[data-chat-keyboard="true"] .chat-app-header{display:none}
+ html[data-chat-keyboard="true"] .chat-viewport{padding:0}
+ html[data-chat-keyboard="true"] .chat-conversation{border-radius:0}
 }

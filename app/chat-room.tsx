@@ -1,5 +1,6 @@
 "use client";
 
+import { bindChatViewport } from "./chat-viewport";
 import { usePresence } from "./use-presence";
 import { useBonks } from "./use-bonks";
 import { useMessageSound } from "./message-sound";
@@ -75,12 +76,9 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
   const [displayName, setDisplayName] = useState("");
   const [attachment, setAttachment] = useState<File | null>(null);
   const [attachmentPreview, setAttachmentPreview] = useState("");
-  useEffect(()=>{
-    const viewport=window.visualViewport;
-    const resize=()=>document.documentElement.style.setProperty('--chat-visible-height',`${viewport?.height || window.innerHeight}px`);
-    resize();viewport?.addEventListener('resize',resize);window.addEventListener('resize',resize);
-    return ()=>{viewport?.removeEventListener('resize',resize);window.removeEventListener('resize',resize);document.documentElement.style.removeProperty('--chat-visible-height');};
-  },[]);
+  useEffect(() => bindChatViewport(() => {
+    if (followBottom.current && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }), []);
   const sound = useMessageSound();
   const attention = useBonks(loadedSlug,displayName,sound.gong);
   const notifyRef = useRef(true);
@@ -91,6 +89,13 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
   const roomRequest = useRef(0);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const [draft, setDraft] = useState("");
+  useLayoutEffect(() => {
+    const input = composerRef.current;
+    if (!input || !window.matchMedia('(max-width:1023px)').matches) return;
+    input.style.height = '44px';
+    input.style.height = `${Math.min(88, Math.max(44, input.scrollHeight))}px`;
+  }, [draft]);
+
   const pendingCursor = useRef<number | null>(null);
   useLayoutEffect(() => {
     if (pendingCursor.current !== null) {
@@ -340,11 +345,11 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
   return (
     <main className="chat-viewport bg-[#07111d] px-4 py-5 text-slate-50 sm:px-6 lg:px-8">
       <div className="mx-auto flex h-full min-h-0 max-w-7xl flex-col gap-5">
-        <header className="shrink-0 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-white/10 bg-white/[.04] px-4 py-3">
+        <header className="chat-app-header shrink-0 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-white/10 bg-white/[.04] px-4 py-3">
           <div className="flex items-center gap-3">
             <div>
               <p className="text-base font-black">Chat</p>
-              <p className="text-sm text-slate-400">Shared chat rooms · Build 22</p>
+              <p className="text-sm text-slate-400">Shared chat rooms · Build 23</p>
             </div>
           </div>
           <button type="button" className="lg:hidden rounded border border-white/20 px-3 py-2 text-sm" aria-expanded={showRoomDetails} onClick={()=>setShowRoomDetails(v=>!v)}>Room / people</button>
@@ -438,8 +443,8 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
             </div>
           </aside>
 
-          <section className="flex min-h-0 flex-col rounded-lg border border-white/10 bg-white/[.05] shadow-2xl shadow-black/25">
-            <div className="shrink-0 flex flex-wrap items-center justify-between gap-3 border-b border-white/10 p-4">
+          <section className="chat-conversation flex min-h-0 flex-col rounded-lg border border-white/10 bg-white/[.05] shadow-2xl shadow-black/25">
+            <div className="chat-room-heading shrink-0 flex flex-wrap items-center justify-between gap-3 border-b border-white/10 p-4">
               <div>
                 <p className="text-sm font-bold uppercase tracking-[.14em] text-cyan-200">
                   {loadedSlug ? `/${loadedSlug}` : "Open a room"}
@@ -449,7 +454,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
             </div>
 
             {attention.notice&&<div role="alert" className="shrink-0 border-b border-amber-300/30 bg-amber-300/15 px-4 py-3 font-bold text-amber-100">{attention.notice}</div>}
-            <div ref={scrollRef} onScroll={event=>{const el=event.currentTarget;followBottom.current=el.scrollHeight-el.scrollTop-el.clientHeight<80;}} className="chat-scroll min-h-0 flex-1 overflow-y-auto bg-slate-950/55 p-5">
+            <div ref={scrollRef} onScroll={event=>{const el=event.currentTarget;followBottom.current=el.scrollHeight-el.scrollTop-el.clientHeight<80;}} className="chat-messages chat-scroll min-h-0 flex-1 overflow-y-auto bg-slate-950/55 p-5">
               <div className="flex min-h-full flex-col justify-end gap-3">
               <MessageBlocks messages={messages} viewerName={displayName.trim()||"Guest"} onBonk={name=>void attention.bonk(name)} bonkBusy={attention.sending} onImageLoad={()=>{if(followBottom.current && scrollRef.current)scrollRef.current.scrollTop=scrollRef.current.scrollHeight;}} />
               {messages.length === 0 ? (
@@ -468,10 +473,10 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
                 <span className="min-w-0 flex-1 truncate text-sm">{attachment?.name}</span>
                 <button type="button" disabled={isSending} onClick={()=>setAttachment(null)} className="px-3 py-2 text-sm">Remove attachment</button>
               </div>}
-              <label className="composer-attach order-2 cursor-pointer rounded border sm:order-none border-white/20 px-3 py-3 text-sm">Attach image<input aria-label="Attach image" type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={isSending} className="sr-only" onChange={event=>{chooseImage(event.target.files?.[0]);event.target.value='';}} /></label>
+              <label title="Attach image" aria-label="Attach image" className="composer-attach order-2 cursor-pointer rounded border sm:order-none border-white/20 px-3 py-3 text-sm"><span className="attach-label">Attach image</span><span className="attach-symbol" aria-hidden="true">＋</span><input aria-label="Attach image" type="file" accept="image/png,image/jpeg,image/webp,image/gif" disabled={isSending} className="sr-only" onChange={event=>{chooseImage(event.target.files?.[0]);event.target.value='';}} /></label>
               <div className="composer-input relative order-1 min-w-0 basis-full sm:order-none sm:flex-1 sm:basis-0">
                 {showEmojiPicker ? (
-                  <div className="absolute bottom-14 left-0 z-10 w-[min(22rem,80vw)] max-w-sm rounded-lg border border-white/15 bg-slate-950 p-3 shadow-2xl shadow-black/40">
+                  <div className="chat-picker absolute bottom-14 left-0 z-10 w-[min(22rem,80vw)] max-w-sm rounded-lg border border-white/15 bg-slate-950 p-3 shadow-2xl shadow-black/40">
                     <div className="mb-3 flex gap-4"><button type="button" onClick={()=>setPickerTab("emoji")} className={pickerTab==="emoji"?"text-cyan-300":""}>Emoji</button><button type="button" onClick={()=>setPickerTab("gif")} className={pickerTab==="gif"?"text-cyan-300":""}>GIFs</button><button type="button" className="ml-auto" onClick={()=>setShowEmojiPicker(false)} aria-label="Close picker">×</button></div>
                     {pickerTab==="gif" ? <GifPicker onSelect={url=>{setDraft(current=>(current+" "+url).trim().slice(0,2000));setShowEmojiPicker(false);composerRef.current?.focus();}} /> : <div className="grid grid-cols-5 gap-2">{EMOJIS.map((emoji) => (
                       <button
@@ -488,8 +493,9 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
                 ) : null}
                 <textarea
                   ref={composerRef}
-                  rows={2}
+                  rows={1}
                   aria-label="Message"
+                  onFocus={() => { setShowRoomDetails(false); followBottom.current = true; }}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) {
                       event.preventDefault();
@@ -527,6 +533,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
               <button
                 type="submit"
                 disabled={!loadedSlug || isSending || (!draft.trim() && !attachment)}
+                onPointerDown={event => { if (document.activeElement === composerRef.current) event.preventDefault(); }}
                 className="composer-send order-2 h-12 rounded-md bg-white px-6 sm:order-none text-sm font-black text-slate-950 hover:bg-cyan-100 disabled:opacity-60"
               >
                 {isSending ? "Sending" : "Send"}
