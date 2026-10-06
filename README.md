@@ -1,3 +1,8 @@
+# Build 25: open-tab presence and permanent colors
+An open background tab stays online and polls for messages. Switching tabs no longer emits leave/join events. Page close/navigation sends leave; disconnected or suspended sessions expire after three minutes without a heartbeat. Immediate reconnect and bounded message requests from Build 24 remain. Notification delivery still depends on browser permission, OS settings and whether Chrome suspends the tab; online means a recent connected session, not guaranteed delivery.
+
+Colors are assigned once in D1 per normalized display name and shared across rooms/devices. The first eight names receive bold blue/yellow/red/green/purple/orange/cyan/white; further names get additional colors. Assignments survive history deletion, leaving, rejoining, and room deletion. Changing your name uses a different identity; identical names share a color. Existing names get a one-time assignment on first use after deployment. The color table is created automatically. No manual SQL or bindings needed.
+
 # Build 24: tab recovery and presence
 Returning to a tab, restoring a page, or reconnecting the network triggers an immediate message refresh without resetting drafts or attachments. Message requests time out after 12 seconds so a stalled request cannot permanently stop polling.
 

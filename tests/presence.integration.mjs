@@ -26,8 +26,9 @@ try {
  assert.equal((await presence(alice,'Alice','heartbeat')).data.removed,true);
  r=await req('/api/rooms/team/messages?after=999999');assert.ok(!r.data.messages.some(m=>m.displayName==='Alice'));assert.ok(!r.data.events.some(e=>e.displayName==='Alice'));assert.ok(!r.data.participants.some(p=>p.name==='Alice'));assert.ok(r.data.messages.some(m=>m.displayName==='Bob'));
  assert.equal((await presence(crypto.randomUUID(),'Alice')).status,200);r=await req('/api/rooms/team/messages');assert.ok(r.data.participants.some(p=>p.name==='Alice'&&p.online));assert.equal(r.data.events.filter(e=>e.displayName==='Alice').length,1);
- await db.prepare('UPDATE chat_sessions SET seen=? WHERE room=? AND name=?').bind(Date.now()-100000,'team','Bob').run();
+ await db.prepare('UPDATE chat_sessions SET seen=? WHERE room=? AND name=?').bind(Date.now()-200000,'team','Bob').run();
  await presence(crypto.randomUUID(),'Carol');r=await req('/api/rooms/team/messages');assert.ok(r.data.events.some(e=>e.displayName==='Bob'&&e.body.includes('left')));
+ const storedColor=r.data.messages.find(m=>m.displayName==='Bob').authorColor;assert.match(storedColor,/^#[0-9a-f]{6}$/i);await req('/api/rooms/team/messages','POST',{displayName:'Different',body:'new author'});const recolored=await req('/api/rooms/team/messages');assert.equal(recolored.data.messages.find(m=>m.displayName==='Bob').authorColor,storedColor);r=recolored;
  const count=r.data.events.length;await presence(bob,'Bob','heartbeat');r=await req('/api/rooms/team/messages');assert.equal(r.data.events.length,count);
  const admin=await req('/api/admin/messages','GET',null,true);assert.ok(admin.data.rooms[0].participants.some(p=>p.name==='Carol'&&p.online));
  console.log('PASS: historical import, shared-name/multi-tab presence, join/leave notices, unauthorized removal, targeted deletion, full refreshed history, revoked heartbeat, free rejoin, timeout deduplication, admin list');

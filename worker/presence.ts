@@ -1,4 +1,5 @@
-const ONLINE_MS = 90_000;
+// Allow background timer throttling; explicit tab close still leaves immediately.
+const ONLINE_MS = 180_000;
 export async function presenceList(db:D1Database, room:string) {
   const rows=await db.prepare('SELECT name, last_seen FROM chat_participants WHERE room = ? ORDER BY name COLLATE NOCASE').bind(room).all<{name:string;last_seen:number}>();
   return rows.results.map(p=>({name:p.name,online:p.last_seen>Date.now()-ONLINE_MS,lastSeen:p.last_seen}));

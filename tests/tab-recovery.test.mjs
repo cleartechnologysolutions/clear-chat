@@ -1,16 +1,16 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';import vm from 'node:vm';import ts from 'typescript';
-const effects=[],events=new Map(),calls=[];let interval,resolveFetch;
+const effects=[],events=new Map(),calls=[];let interval,resolveFetch;let beacons=0;
 const document={visibilityState:'visible',addEventListener:(n,f)=>events.set(n,f),removeEventListener:n=>events.delete(n)};
 const window={addEventListener:(n,f)=>events.set(n,f),removeEventListener:n=>events.delete(n)};
 const react={useRef:v=>({current:v}),useState:v=>[v,()=>{}],useEffect:f=>effects.push(f)};
 const code=ts.transpileModule(fs.readFileSync('app/use-presence.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText;
-const context={exports:{},require:()=>react,document,window,crypto,Blob,AbortSignal,setTimeout,clearTimeout,setInterval:f=>(interval=f,1),clearInterval(){},navigator:{sendBeacon:()=>true},fetch:async(url,opts)=>{calls.push(JSON.parse(opts.body).action);if(resolveFetch===null)await new Promise(r=>resolveFetch=r);return {ok:true,json:async()=>({})};}};
+const context={exports:{},require:()=>react,document,window,crypto,queueMicrotask,Blob,AbortSignal,setTimeout,clearTimeout,setInterval:f=>(interval=f,1),clearInterval(){},navigator:{sendBeacon:()=>{beacons++;return true}},fetch:async(url,opts)=>{calls.push(JSON.parse(opts.body).action);if(resolveFetch===null)await new Promise(r=>resolveFetch=r);return {ok:true,json:async()=>({})};}};
 vm.runInNewContext(code,context);context.exports.usePresence('team','Alicia',()=>{throw Error('Unexpected removal')});const cleanup=effects.at(-1)();
 const flush=()=>new Promise(r=>setImmediate(r));await flush();assert.deepEqual(calls,['join']);
-document.visibilityState='hidden';events.get('visibilitychange')();await flush();assert.deepEqual(calls,['join','leave']);interval();await flush();assert.equal(calls.length,2);
-document.visibilityState='visible';events.get('visibilitychange')();await flush();assert.equal(calls.at(-1),'join');
-resolveFetch=null;interval();await flush();document.visibilityState='hidden';events.get('visibilitychange')();resolveFetch();await flush();assert.equal(calls.at(-1),'leave');cleanup();assert.equal(events.size,0);
+document.visibilityState='hidden';events.get('visibilitychange')();await flush();assert.deepEqual(calls,['join','heartbeat']);interval();await flush();assert.equal(calls.length,3);
+document.visibilityState='visible';events.get('visibilitychange')();await flush();assert.equal(calls.at(-1),'heartbeat');
+resolveFetch=null;interval();await flush();document.visibilityState='hidden';events.get('visibilitychange')();resolveFetch();await flush();assert.equal(calls.at(-1),'heartbeat');assert.equal(beacons,0);events.get('pagehide')();assert.equal(beacons,1);cleanup();assert.equal(events.size,0);
 // Execute the real notification function with browser stubs.
 const source=fs.readFileSync('app/chat-room.tsx','utf8');const notify=source.slice(source.indexOf('  function flashNotification('),source.indexOf('  async function enableNotifications'));
 const notifications=[];function Notification(title,opts){notifications.push({title,...opts})}Notification.permission='granted';
@@ -18,7 +18,7 @@ const nctx={notifyRef:{current:true},document:{visibilityState:'hidden',title:'C
 vm.runInNewContext(ts.transpileModule(notify,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,nctx);
 nctx.flashNotification({kind:'system',displayName:'Alicia',body:'Alicia left the chat.'});assert.equal(notifications[0].body,'Alicia left the chat.');assert.equal(notifications[0].title,'Chat activity');
 nctx.flashNotification({displayName:'Adam',body:'Hi'});assert.equal(notifications[1].title,'New chat message');
-console.log('PASS: hidden leave, no hidden heartbeat, visible rejoin, in-flight visibility race, cleanup and actual join/leave notification content');
+console.log('PASS: hidden heartbeat, no tab-switch leave/join, close beacon, in-flight visibility race, cleanup and actual join/leave notification content');
 const begin=source.indexOf('  const loadMessages = useCallback'),end=source.indexOf('\n  usePresence(',begin);
 let deadline,attempt=0;const statuses=[];
 const ref=v=>({current:v});const pctx={useCallback:f=>f,cleanSlug:x=>x,polling:ref(false),sendingRef:ref(false),roomRequest:ref(1),activeRead:ref(null),loadedSlugRef:ref('team'),followBottom:ref(false),fetchedId:ref(0),seenIds:ref(new Set()),AbortController,setTimeout:f=>(deadline=f,1),clearTimeout(){},setStatus:s=>statuses.push(s),setLoadedSlug(){},setMessages(){},setParticipants(){},setSlug(){},sound:{play(){}},flashNotification(){},fetch:async(u,o)=>{attempt++;if(attempt===1)return new Promise((_,reject)=>o.signal.addEventListener('abort',()=>reject(Error('aborted'))));return {ok:true,json:async()=>({messages:[],events:[],participants:[]})};}};

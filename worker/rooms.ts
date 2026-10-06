@@ -2,6 +2,7 @@
 let ready: Promise<unknown> | undefined;
 export function ensureRooms(db: D1Database) {
   if (!ready) ready = db.batch([
+    db.prepare('CREATE TABLE IF NOT EXISTS chat_author_colors (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE)'),
     db.prepare('CREATE TABLE IF NOT EXISTS chat_rooms (slug TEXT PRIMARY KEY, created_at INTEGER NOT NULL, active INTEGER NOT NULL DEFAULT 1)'),
     db.prepare('CREATE TABLE IF NOT EXISTS chat_participants (room TEXT NOT NULL, name TEXT NOT NULL, last_seen INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(room,name))'),
     db.prepare('CREATE TABLE IF NOT EXISTS chat_sessions (room TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL, seen INTEGER NOT NULL, removed INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(room,id))'),
