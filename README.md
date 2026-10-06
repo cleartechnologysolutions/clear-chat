@@ -1,3 +1,8 @@
+# Build 24: tab recovery and presence
+Returning to a tab, restoring a page, or reconnecting the network triggers an immediate message refresh without resetting drafts or attachments. Message requests time out after 12 seconds so a stalled request cannot permanently stop polling.
+
+Hidden tabs leave online presence but keep message polling for notifications; visible tabs rejoin. Join/leave notifications show the actual event. Closing a tab stops its notifications. Browser suspension, Memory Saver, and OS notification settings can still delay background notifications; this is polling, not Web Push. No database migration or new bindings required.
+
 # Build 20: multiline messages
 
 Shift+Enter inserts a line break. Enter sends the message and keeps focus in the message box. The message box supports multiple lines, and sent messages preserve line breaks. IME composition does not trigger sending. No settings or database changes; upload and redeploy.
