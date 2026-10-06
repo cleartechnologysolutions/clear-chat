@@ -86,6 +86,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
   const seenIds = useRef(new Set<number>());
   const fetchedId = useRef(0);
   const polling = useRef(false);
+  const activeRead = useRef<AbortController | null>(null);
   const roomRequest = useRef(0);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const [draft, setDraft] = useState("");
@@ -166,21 +167,25 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
 
     if (quiet && (polling.current || sendingRef.current)) return;
     if (quiet) polling.current = true;
-    if (!quiet) {roomRequest.current++; loadedSlugRef.current = safeSlug; followBottom.current=true; fetchedId.current=0; seenIds.current=new Set();}
+    if (!quiet) {polling.current=false;roomRequest.current++; loadedSlugRef.current = safeSlug; followBottom.current=true; fetchedId.current=0; seenIds.current=new Set();}
     const requestId = roomRequest.current;
+    activeRead.current?.abort();
+    const controller=new AbortController();activeRead.current=controller;
+    const deadline=setTimeout(()=>controller.abort(),12000);
     try {
       if (!quiet) setStatus("Loading room...");
       const after = quiet ? fetchedId.current : 0;
       const response = await fetch(`/api/rooms/${safeSlug}/messages?after=${after}`, {
         cache: "no-store",
+        signal: controller.signal,
       });
       const data = (await response.json()) as MessagesResponse;
       if (!response.ok) {
-        if (response.status === 404 && requestId === roomRequest.current) {setLoadedSlug('');loadedSlugRef.current='';setMessages([]);}
+        if (!controller.signal.aborted && response.status === 404 && requestId === roomRequest.current) {setLoadedSlug('');loadedSlugRef.current='';setMessages([]);}
         throw new Error(data.error || "Load failed.");
       }
 
-      if (requestId !== roomRequest.current || (quiet && loadedSlugRef.current !== safeSlug)) return;
+      if (controller.signal.aborted || requestId !== roomRequest.current || (quiet && loadedSlugRef.current !== safeSlug)) return;
       if (quiet && sendingRef.current) return;
       setParticipants(data.participants || []);
       const incoming = [...(data.messages || []),...(data.events || [])].sort((a,b)=>Date.parse(a.createdAt)-Date.parse(b.createdAt) || a.id-b.id);
@@ -197,11 +202,11 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
 
       if (quiet && fresh.length > 0) {
         sound.play();
-        flashNotification(fresh.at(-1)?.displayName || "Someone");
+        for(const message of fresh) flashNotification(message);
       }
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Load failed.");
-    } finally { if(quiet) polling.current=false; }
+      if(activeRead.current===controller)setStatus(controller.signal.aborted?"Connection interrupted — retrying…":error instanceof Error ? error.message : "Load failed.");
+    } finally { clearTimeout(deadline);if(activeRead.current===controller){activeRead.current=null;if(quiet)polling.current=false;} }
   }, [sound.play]);
 
   usePresence(loadedSlug,displayName,()=>{
@@ -226,21 +231,26 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
       void loadMessages(loadedSlugRef.current, true);
     }, 2500);
 
-    return () => window.clearInterval(timer);
+    const resume=()=>{if(document.visibilityState!=='visible')return;activeRead.current?.abort();activeRead.current=null;polling.current=false;void loadMessages(loadedSlugRef.current,true);};
+    document.addEventListener('visibilitychange',resume);window.addEventListener('pageshow',resume);window.addEventListener('online',resume);
+    return () => {window.clearInterval(timer);document.removeEventListener('visibilitychange',resume);window.removeEventListener('pageshow',resume);window.removeEventListener('online',resume);activeRead.current?.abort();activeRead.current=null;polling.current=false;};
   }, [loadedSlug, loadMessages]);
 
-  function flashNotification(sender: string) {
+  function flashNotification(message: ChatMessage) {
+    const sender=message.displayName||"Someone";
+    const system=message.kind==="system";
+    const title=system?message.body:`New message from ${sender}`;
     if (!notifyRef.current || document.visibilityState === "visible") return;
 
     const originalTitle = document.title;
-    document.title = `New message from ${sender}`;
+    document.title = title;
     window.setTimeout(() => {
       document.title = originalTitle;
     }, 3500);
 
     if ("Notification" in window && Notification.permission === "granted") {
-      new Notification("New chat message", {
-        body: `${sender} posted in /${loadedSlugRef.current}`,
+      new Notification(system?"Chat activity":"New chat message", {
+        body: system?message.body:`${sender} posted in /${loadedSlugRef.current}`,
       });
     }
   }
@@ -349,7 +359,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
           <div className="flex items-center gap-3">
             <div>
               <p className="text-base font-black">Chat</p>
-              <p className="text-sm text-slate-400">Shared chat rooms · Build 23</p>
+              <p className="text-sm text-slate-400">Shared chat rooms · Build 24</p>
             </div>
           </div>
           <button type="button" className="lg:hidden rounded border border-white/20 px-3 py-2 text-sm" aria-expanded={showRoomDetails} onClick={()=>setShowRoomDetails(v=>!v)}>Room / people</button>
