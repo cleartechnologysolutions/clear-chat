@@ -21,9 +21,10 @@ function cleanSlug(value: string) {
     .slice(0, 60);
 }
 
-type Participant = {name:string;online:boolean;lastSeen:number};
+type Participant = {name:string;authorColor?:string;online:boolean;lastSeen:number};
 type ChatMessage = {
   kind?:string;
+  authorColor?:string;
   id: number;
   roomSlug: string;
   displayName: string;
@@ -359,7 +360,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
           <div className="flex items-center gap-3">
             <div>
               <p className="text-base font-black">Chat</p>
-              <p className="text-sm text-slate-400">Shared chat rooms · Build 24</p>
+              <p className="text-sm text-slate-400">Shared chat rooms · Build 25</p>
             </div>
           </div>
           <button type="button" className="lg:hidden rounded border border-white/20 px-3 py-2 text-sm" aria-expanded={showRoomDetails} onClick={()=>setShowRoomDetails(v=>!v)}>Room / people</button>
@@ -371,7 +372,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
             <button type="button" className="mb-3 rounded border border-white/20 px-3 py-2 lg:hidden" onClick={()=>setShowRoomDetails(false)}>Back to chat</button>
             {loadedSlug && <section className="mb-5 rounded-lg border border-white/15 p-3" aria-label="Participants">
               <h2 className="font-bold">People · {participants.filter(p=>p.online).length} online</h2>
-              <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto">{participants.map(p=><li key={p.name} className="flex justify-between gap-3 text-sm"><span className="break-all">{p.name}</span><span className={p.online?'text-cyan-200':'text-slate-400'}>{p.online?'● Online':'○ Offline'}</span></li>)}</ul>
+              <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto">{participants.map(p=><li key={p.name} className="flex justify-between gap-3 text-sm"><span className="break-all" style={{color:p.authorColor}}>{p.name}</span><span className={p.online?'text-cyan-200':'text-slate-400'}>{p.online?'● Online':'○ Offline'}</span></li>)}</ul>
               {!participants.length && <p className="mt-2 text-sm text-slate-400">Joining…</p>}
               <button type="button" className="mt-3 text-sm underline" onClick={()=>{roomRequest.current++;setLoadedSlug('');loadedSlugRef.current='';setMessages([]);setParticipants([]);setStatus('You left the room. Open it again to rejoin.');}}>Leave room</button>
             </section>}

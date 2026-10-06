@@ -1,3 +1,4 @@
+import {colorsFor} from '../../../../worker/author-colors';
 import {presenceList} from "../../../../worker/presence";
 import { imageBucket, messageImage } from "../../../chat-images";
 import { and, desc, eq, lt, inArray, type SQL } from "drizzle-orm";
@@ -56,6 +57,7 @@ export async function GET(request: Request) {
       .orderBy(desc(messages.createdAt))
       .limit(500);
 
+    const colors=await colorsFor(env.DB,rows.slice().reverse().map(m=>m.displayName));
     const rooms = new Map<
       string,
       {
@@ -65,6 +67,7 @@ export async function GET(request: Request) {
         messages: Array<{
           id: number;
           displayName: string;
+          authorColor?: string;
           body: string;
           imageUrl: string | null;
           createdAt: string;
@@ -88,6 +91,7 @@ export async function GET(request: Request) {
       room.messages.push({
         id: message.id,
         displayName: message.displayName,
+        authorColor: colors.get(message.displayName.trim().toLowerCase()),
         body: message.body,
         imageUrl: messageImage(message),
         createdAt: message.createdAt.toISOString(),

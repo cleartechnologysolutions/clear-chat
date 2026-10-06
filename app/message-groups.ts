@@ -1,5 +1,6 @@
 export type GroupableMessage = {
   kind?: string;
+  authorColor?: string;
   id: number;
   displayName: string;
   body: string;
@@ -8,29 +9,18 @@ export type GroupableMessage = {
 };
 // Order deliberately separates adjacent participants by hue, not just shade.
 const COLORS = ['#3399ff','#ffdf00','#ff5555','#33dd77','#ee77ff','#ff9933','#33dddd','#ffffff'];
-// Reserve each palette color once per visible conversation, in first-message order.
-// Appending messages never changes colors already assigned in that conversation.
-export function authorColors(messages: GroupableMessage[]) {
-  const assigned = new Map<string, string>();
-  const used = new Set<string>();
-  for (const message of messages) {
-    if(message.kind==='system')continue;
-    const name=message.displayName;
-    if(assigned.has(name))continue;
-    let color=COLORS[assigned.size] || '';
-    if(!color) {
-      // Beyond the base palette, generate additional distinct light colors.
-      let index=assigned.size;
-      do {
-        const hue=(index++ * 137.508)%360;
-        const chroma=0.42, light=0.72, x=chroma*(1-Math.abs((hue/60)%2-1));
-        const channels=hue<60?[chroma,x,0]:hue<120?[x,chroma,0]:hue<180?[0,chroma,x]:hue<240?[0,x,chroma]:hue<300?[x,0,chroma]:[chroma,0,x];
-        color='#'+channels.map(v=>Math.round((v+light-chroma/2)*255).toString(16).padStart(2,'0')).join('');
-      } while(used.has(color));
-    }
-    assigned.set(name,color);used.add(color);
-  }
-  return assigned;
+export function paletteColor(index:number){
+ if(index<COLORS.length)return COLORS[index];
+ const hue=(index*137.508)%360,chroma=.42,light=.72,x=chroma*(1-Math.abs((hue/60)%2-1));
+ const channels=hue<60?[chroma,x,0]:hue<120?[x,chroma,0]:hue<180?[0,chroma,x]:hue<240?[0,x,chroma]:hue<300?[x,0,chroma]:[chroma,0,x];
+ return '#'+channels.map(v=>Math.round((v+light-chroma/2)*255).toString(16).padStart(2,'0')).join('');
+}
+export function authorColors(messages:GroupableMessage[]){
+ const assigned=new Map<string,string>();
+ for(const m of messages){if(m.kind==='system')continue;
+ let hash=0;for(const c of m.displayName.trim().toLowerCase())hash=(Math.imul(hash,31)+c.charCodeAt(0))>>>0;
+ assigned.set(m.displayName,m.authorColor||paletteColor(hash%COLORS.length));
+ }return assigned;
 }
 export function groupMessages<T extends GroupableMessage>(messages: T[]) {
   const groups: {displayName:string; messages:T[]}[] = [];

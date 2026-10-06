@@ -12,20 +12,19 @@ export function usePresence(room:string,name:string,onRemoved:()=>void) {
   const beacon=()=>navigator.sendBeacon(url,new Blob([payload('leave')],{type:'application/json'}));
   async function sync(){
    if(busy||!alive)return;
-   const visible=document.visibilityState==='visible';
-   if(!visible&&!joined)return;
+
    busy=true;
    try{
-    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:payload(visible?(joined?'heartbeat':'join'):'leave'),keepalive:true,signal:AbortSignal.timeout(12000)});
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:payload(joined?'heartbeat':'join'),keepalive:true,signal:AbortSignal.timeout(12000)});
     if(!alive){beacon();return;}
     if(r.status===404){alive=false;callback.current();return;}if(!r.ok)return;
     const d=await r.json() as {removed?:boolean;rejoin?:boolean};
     if(d.removed){alive=false;callback.current();return;}
-    joined=visible&&!d.rejoin;
+    joined=!d.rejoin;
+    if(d.rejoin)queueMicrotask(()=>void sync());
    }catch{}finally{
     busy=false;
-    // Reconcile a tab switch that happened while the request was in flight.
-    if(alive&&visible!==(document.visibilityState==='visible'))void sync();
+
    }
   }
   function hide(){beacon();joined=false;}
