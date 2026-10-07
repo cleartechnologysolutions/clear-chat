@@ -159,6 +159,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
     return `${window.location.origin}/${normalizedSlug}`;
   }, [normalizedSlug]);
 
+  const retryReadAt=useRef(0);
   const loadMessages = useCallback(async (targetSlug: string, quiet = false) => {
     const safeSlug = cleanSlug(targetSlug);
     if (!safeSlug) {
@@ -166,7 +167,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
       return;
     }
 
-    if (quiet && (polling.current || sendingRef.current)) return;
+    if (quiet && (polling.current || sendingRef.current || Date.now()<retryReadAt.current)) return;
     if (quiet) polling.current = true;
     if (!quiet) {polling.current=false;roomRequest.current++; loadedSlugRef.current = safeSlug; followBottom.current=true; fetchedId.current=0; seenIds.current=new Set();}
     const requestId = roomRequest.current;
@@ -182,12 +183,14 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
       });
       const data = (await response.json()) as MessagesResponse;
       if (!response.ok) {
+        if(response.status===429||response.status>=500)retryReadAt.current=Date.now()+60000;
         if (!controller.signal.aborted && response.status === 404 && requestId === roomRequest.current) {setLoadedSlug('');loadedSlugRef.current='';setMessages([]);}
         throw new Error(data.error || "Load failed.");
       }
 
       if (controller.signal.aborted || requestId !== roomRequest.current || (quiet && loadedSlugRef.current !== safeSlug)) return;
       if (quiet && sendingRef.current) return;
+      retryReadAt.current=0;
       setParticipants(data.participants || []);
       const incoming = [...(data.messages || []),...(data.events || [])].sort((a,b)=>Date.parse(a.createdAt)-Date.parse(b.createdAt) || a.id-b.id);
       const fresh = incoming.filter(message=>!seenIds.current.has(message.id));
@@ -360,7 +363,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
           <div className="flex items-center gap-3">
             <div>
               <p className="text-base font-black">Chat</p>
-              <p className="text-sm text-slate-400">Shared chat rooms · Build 25</p>
+              <p className="text-sm text-slate-400">Shared chat rooms · Build 26</p>
             </div>
           </div>
           <button type="button" className="lg:hidden rounded border border-white/20 px-3 py-2 text-sm" aria-expanded={showRoomDetails} onClick={()=>setShowRoomDetails(v=>!v)}>Room / people</button>

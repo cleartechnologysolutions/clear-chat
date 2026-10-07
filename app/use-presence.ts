@@ -29,7 +29,7 @@ export function usePresence(room:string,name:string,onRemoved:()=>void) {
   }
   function hide(){beacon();joined=false;}
   function resume(){void sync();}
-  void sync();const timer=setInterval(sync,20000);
+  void sync();const timer=setInterval(sync,60000);
   document.addEventListener('visibilitychange',resume);
   window.addEventListener('online',resume);window.addEventListener('pagehide',hide);window.addEventListener('pageshow',resume);
   return()=>{alive=false;clearInterval(timer);document.removeEventListener('visibilitychange',resume);window.removeEventListener('online',resume);window.removeEventListener('pagehide',hide);window.removeEventListener('pageshow',resume);beacon();};
