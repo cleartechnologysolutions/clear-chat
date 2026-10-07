@@ -1,8 +1,10 @@
+import {RoomCache} from "./room-cache";
 import {handlePresence, expirePresence} from "./presence";
 import { handleBonks } from "./bonks";
 interface VideoEnv { DB:D1Database; TURN_KEY_ID?: string; TURN_API_TOKEN?: string }
 type Member = { id: string; name: string; ready: boolean; seen: number; window: number; count: number; callId?: string; iceAt?: number };
 export class VideoRoom {
+  private roomCache: RoomCache | undefined;
   constructor(private state: DurableObjectState, private env: VideoEnv) {}
   members() { return this.state.getWebSockets().filter(ws => ws.readyState === 1); }
   send(ws: WebSocket, data: unknown) { try { ws.send(JSON.stringify(data)); } catch {} }
@@ -20,6 +22,10 @@ export class VideoRoom {
   }
   async fetch(request: Request) {
     const url = new URL(request.url);
+    if(url.pathname === "/internal/cache") {
+      this.roomCache ??= new RoomCache(this.env.DB);
+      return this.state.blockConcurrencyWhile(()=>this.roomCache!.fetch(request));
+    }
     if (url.pathname.endsWith('/presence') || url.pathname==='/internal/remove-participant') return handlePresence(this.state,this.env.DB,request);
     if (url.pathname === '/internal/delete-room') {
       for (const ws of this.state.getWebSockets()) {this.send(ws,{type:'room-deleted'});ws.serializeAttachment(null);ws.close(1000,'Room deleted by admin');}
@@ -88,7 +94,7 @@ export class VideoRoom {
     const room=await this.state.storage.get<string>('presenceRoom');
     if(room){
       await this.state.blockConcurrencyWhile(()=>expirePresence(this.env.DB,room));
-      if(await this.env.DB.prepare('SELECT id FROM chat_sessions WHERE room=? AND removed=0 LIMIT 1').bind(room).first())await this.state.storage.setAlarm(Date.now()+15000);
+      if(await this.env.DB.prepare('SELECT id FROM chat_sessions WHERE room=? AND removed=0 LIMIT 1').bind(room).first())await this.state.storage.setAlarm(Date.now()+60000);
       return;
     }
 await this.state.storage.delete("bonks");for(const ws of this.members()){const m=ws.deserializeAttachment() as Member|null;if(m&&Date.now()-m.seen>90_000){this.leave(ws);ws.close(1000,'Timed out');}}

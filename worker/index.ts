@@ -1,3 +1,4 @@
+import {invalidateRoom} from './room-cache';
 import { ensureRooms, roomExists } from "./rooms";
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
@@ -33,6 +34,8 @@ const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
+    const cached = url.pathname.match(/^\/api\/rooms\/([a-z0-9-]{1,60})\/messages$/);
+    if(cached && request.method==='GET')return env.VIDEO_ROOMS.get(env.VIDEO_ROOMS.idFromName('cache:'+cached[1])).fetch('https://internal/internal/cache?room='+cached[1]);
     // Protect every room transport before forwarding to the app or Durable Object.
     const roomPath = url.pathname.match(/^\/api\/(?:rooms|calls|bonks)\/([^/]+)/);
     if (roomPath || url.pathname === '/api/admin/messages') {
@@ -47,7 +50,10 @@ const worker = {
     const presence = url.pathname.match(/^\/api\/rooms\/([a-z0-9-]{1,60})\/presence$/);
     if(presence){
       if(request.method!=='GET' && request.headers.get('Origin')!==url.origin)return new Response('Origin not allowed',{status:403});
-      return env.VIDEO_ROOMS.get(env.VIDEO_ROOMS.idFromName('presence:'+presence[1])).fetch(request);
+      const body=(request.method==='POST'?await request.clone().json().catch(()=>({})): {}) as {action?:string};
+      const response=await env.VIDEO_ROOMS.get(env.VIDEO_ROOMS.idFromName('presence:'+presence[1])).fetch(request);
+      if(response.ok && (body.action==='join'||body.action==='leave'))await invalidateRoom(env.VIDEO_ROOMS,presence[1]);
+      return response;
     }
     const bonks = url.pathname.match(/^\/api\/bonks\/([a-z0-9-]{1,60})$/);
     if (bonks) {
@@ -73,7 +79,24 @@ const worker = {
       }, allowedWidths);
     }
 
-    return handler.fetch(request, env, ctx);
+    const adminMutation=url.pathname==='/api/admin/messages' && ['POST','DELETE'].includes(request.method);
+    const mutation=(adminMutation?await request.clone().json().catch(()=>({})):null) as {roomSlug?:string;action?:string}|null;
+    const response=await handler.fetch(request, env, ctx);
+    if(response.ok){
+      const rooms=new Set<string>();
+      if(cached && request.method==='POST')rooms.add(cached[1]);
+      if(adminMutation){
+        if(mutation?.roomSlug)rooms.add(String(mutation.roomSlug).trim().toLowerCase());
+        if(mutation?.action==='cleanup-old'){
+          const registered=await env.DB.prepare('SELECT slug FROM chat_rooms').all<{slug:string}>();
+          for(const room of registered.results)rooms.add(room.slug);
+        }
+      }
+      for(const room of rooms){
+        try{await invalidateRoom(env.VIDEO_ROOMS,room);}catch(error){console.error(error);ctx.waitUntil(invalidateRoom(env.VIDEO_ROOMS,room).catch(console.error));}
+      }
+    }
+    return response;
   },
 };
 

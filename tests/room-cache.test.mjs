@@ -1,0 +1,17 @@
+import fs from 'node:fs';import vm from 'node:vm';import ts from 'typescript';import assert from 'node:assert/strict';
+let reads=0,fail=false;let now=100000;const Clock=class extends Date{static now(){return now}};
+const db={prepare(sql){return {bind(){return this},async all(){reads++;if(fail)throw Error('quota');return {results:sql.includes('FROM messages')?[{id:1,display_name:'Adam',body:'hello',created_at:1,image_key:null}]:[]}}}}};
+const modules={'./rooms':{ensureRooms:async()=>{},roomExists:async()=>true},'./author-colors':{colorsFor:async()=>new Map([['adam','#123456']])},'./presence':{presenceList:async()=>[]}};
+const context={exports:{},require:name=>modules[name],Response,Request,URL,Date:Clock,console:{error(){}}};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('worker/room-cache.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,context);
+const cache=new context.exports.RoomCache(db),request=new Request('https://internal/internal/cache?room=team');
+assert.equal((await cache.fetch(request)).status,200);assert.equal(reads,2);
+for(let i=0;i<100;i++)assert.equal((await cache.fetch(request)).status,200);
+assert.equal(reads,2,'100 unchanged polls must issue no new message/event reads');
+await cache.fetch(new Request(request,{method:'DELETE'}));await cache.fetch(request);assert.equal(reads,4,'writes invalidate cache');
+now+=30001;await cache.fetch(request);assert.equal(reads,6,'expiry reconciles missed invalidation');
+now+=30001;fail=true;assert.equal((await cache.fetch(request)).status,503);const failedReads=reads;
+for(let i=0;i<100;i++)assert.equal((await cache.fetch(request)).status,503);
+assert.equal(reads,failedReads,'quota failure must back off shared database retries');
+now+=60001;fail=false;assert.equal((await cache.fetch(request)).status,200);
+console.log('PASS: shared cache, 100 idle polls with zero extra reads, invalidation, expiry reconciliation, quota backoff and recovery');

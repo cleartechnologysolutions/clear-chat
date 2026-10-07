@@ -11,8 +11,8 @@ async function join(room='test'){
 }
 try {
  const db=await mf.getD1Database('DB');
- await db.exec('CREATE TABLE messages (id INTEGER PRIMARY KEY, room_slug TEXT, created_at INTEGER)');
- await db.exec("INSERT INTO messages VALUES (1, 'test', 1), (2, 'other', 1)");
+ await db.exec("CREATE TABLE messages (id INTEGER PRIMARY KEY, room_slug TEXT, created_at INTEGER, display_name TEXT DEFAULT 'Guest')");
+ await db.exec("INSERT INTO messages(id,room_slug,created_at) VALUES (1, 'test', 1), (2, 'other', 1)");
  const forbidden=await mf.dispatchFetch('http://chat.test/api/calls/test',{headers:{Upgrade:'websocket',Origin:'https://elsewhere.test'}});assert.equal(forbidden.status,403);
  const a=await join();const first=await a.next();assert.equal(first.type,'joined');
  const ice=await mf.dispatchFetch('http://chat.test/api/calls/test/ice',{method:'POST',headers:{Origin:'http://chat.test',Authorization:`Bearer ${first.token}`}});assert.equal(ice.status,200);assert.equal((await ice.json()).relay,false);

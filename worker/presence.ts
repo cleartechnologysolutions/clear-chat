@@ -43,7 +43,7 @@ export async function handlePresence(state:DurableObjectState,db:D1Database,requ
   } else {
     // Heartbeats never resurrect sessions removed by admin or expired while asleep.
     if(!existing&&action!=='join')return Response.json({rejoin:true});
-    const online=await db.prepare('SELECT id FROM chat_sessions WHERE room=? AND name=? AND removed=0 LIMIT 1').bind(room,name).first();
+    const online=existing || await db.prepare('SELECT id FROM chat_sessions WHERE room=? AND name=? AND removed=0 LIMIT 1').bind(room,name).first();
     await db.batch([
       db.prepare('INSERT INTO chat_sessions(room,id,name,seen) VALUES(?,?,?,?) ON CONFLICT(room,id) DO UPDATE SET seen=excluded.seen').bind(room,id,name,Date.now()),
       db.prepare('INSERT INTO chat_participants(room,name,last_seen) VALUES(?,?,?) ON CONFLICT(room,name) DO UPDATE SET last_seen=excluded.last_seen').bind(room,name,Date.now())
@@ -51,6 +51,6 @@ export async function handlePresence(state:DurableObjectState,db:D1Database,requ
     if(!online)await event(db,room,name,'joined');
   }
   await state.storage.put('presenceRoom',room);await state.storage.setAlarm(Date.now()+ONLINE_MS);
-  return Response.json({participants:await presenceList(db,room)});
+  return Response.json({ok:true});
  });
 }
