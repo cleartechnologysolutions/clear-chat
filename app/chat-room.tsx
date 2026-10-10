@@ -192,7 +192,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
       if (quiet && sendingRef.current) return;
       retryReadAt.current=0;
       setParticipants(data.participants || []);
-      const incoming = [...(data.messages || []),...(data.events || [])].sort((a,b)=>Date.parse(a.createdAt)-Date.parse(b.createdAt) || a.id-b.id);
+      const incoming = (data.messages || []).filter(message=>message.kind!=="system").sort((a,b)=>Date.parse(a.createdAt)-Date.parse(b.createdAt) || a.id-b.id);
       const fresh = incoming.filter(message=>!seenIds.current.has(message.id));
       for(const message of incoming) seenIds.current.add(message.id);
       fetchedId.current = Math.max(fetchedId.current,...incoming.map(message=>message.id));
@@ -241,6 +241,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
   }, [loadedSlug, loadMessages]);
 
   function flashNotification(message: ChatMessage) {
+    if(message.kind==="system")return;
     const sender=message.displayName||"Someone";
     const system=message.kind==="system";
     const title=system?message.body:`New message from ${sender}`;
@@ -363,7 +364,7 @@ export function ChatRoom({ initialSlug }: { initialSlug?: string }) {
           <div className="flex items-center gap-3">
             <div>
               <p className="text-base font-black">Chat</p>
-              <p className="text-sm text-slate-400">Shared chat rooms · Build 26</p>
+              <p className="text-sm text-slate-400">Shared chat rooms · Build 27</p>
             </div>
           </div>
           <button type="button" className="lg:hidden rounded border border-white/20 px-3 py-2 text-sm" aria-expanded={showRoomDetails} onClick={()=>setShowRoomDetails(v=>!v)}>Room / people</button>

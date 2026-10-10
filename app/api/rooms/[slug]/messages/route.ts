@@ -51,14 +51,13 @@ export async function GET(
     const db = getDb();
 
     const rows = await db.select().from(messages).where(eq(messages.roomSlug,slug)).orderBy(desc(messages.id)).limit(100);
-    const events=await env.DB.prepare('SELECT * FROM chat_events WHERE room=? ORDER BY id DESC LIMIT 100').bind(slug).all<{id:number;name:string;kind:string;created_at:number}>();
 
     const participants=await presenceList(env.DB,slug);
     const colors=await colorsFor(env.DB,[...rows.slice().reverse().map(m=>m.displayName),...participants.map(p=>p.name)]);
     return Response.json({
       room: slug,
       participants: participants.map(p=>({...p,authorColor:colors.get(p.name.trim().toLowerCase())})),
-      events: events.results.map(e=>({id:-e.id,displayName:e.name,body:`${e.name} ${e.kind} the chat.`,kind:'system',createdAt:new Date(e.created_at).toISOString()})),
+      events: [],
       messages: rows.reverse().map((message) => ({
         id: message.id,
         roomSlug: message.roomSlug,
