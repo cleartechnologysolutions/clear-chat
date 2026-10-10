@@ -12,9 +12,9 @@ try {
  const alice=crypto.randomUUID(),alice2=crypto.randomUUID(),bob=crypto.randomUUID();
  let r=await req('/api/rooms/team/messages');assert.equal(r.data.participants[0].name,'Historical');assert.equal(r.data.participants[0].online,false);
  assert.equal((await presence(alice,'Alice')).status,200);await presence(alice2,'Alice');await presence(bob,'Bob');
- r=await req('/api/rooms/team/messages');assert.equal(r.data.events.filter(e=>e.displayName==='Alice').length,1);assert.equal(r.data.participants.filter(p=>p.online).length,2);
- await presence(alice,'Alice','leave');r=await req('/api/rooms/team/messages');assert.equal(r.data.participants.find(p=>p.name==='Alice').online,true);assert.equal(r.data.events.filter(e=>e.displayName==='Alice').length,1);
- await presence(alice2,'Alice','leave');r=await req('/api/rooms/team/messages');assert.equal(r.data.participants.find(p=>p.name==='Alice').online,false);assert.equal(r.data.events.filter(e=>e.displayName==='Alice').length,2);
+ r=await req('/api/rooms/team/messages');assert.equal(r.data.events.length,0);assert.equal(r.data.participants.filter(p=>p.online).length,2);
+ await presence(alice,'Alice','leave');r=await req('/api/rooms/team/messages');assert.equal(r.data.participants.find(p=>p.name==='Alice').online,true);assert.equal(r.data.events.length,0);
+ await presence(alice2,'Alice','leave');r=await req('/api/rooms/team/messages');assert.equal(r.data.participants.find(p=>p.name==='Alice').online,false);assert.equal(r.data.events.length,0);
  await presence(alice,'Alice');await req('/api/rooms/team/messages','POST',{displayName:'Alice',body:'delete me'});await req('/api/rooms/team/messages','POST',{displayName:'Bob',body:'keep me'});
  const form=new FormData();form.set('displayName','Alice');form.set('image',new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aGz8AAAAASUVORK5CYII=','base64')],{type:'image/png'}),'test.png');
  const imageReq=new Request(origin+'/api/rooms/team/messages',{method:'POST',body:form,headers:{Origin:origin}});
@@ -25,11 +25,11 @@ try {
  assert.equal((await bucket.list()).objects.length,0);
  assert.equal((await presence(alice,'Alice','heartbeat')).data.removed,true);
  r=await req('/api/rooms/team/messages?after=999999');assert.ok(!r.data.messages.some(m=>m.displayName==='Alice'));assert.ok(!r.data.events.some(e=>e.displayName==='Alice'));assert.ok(!r.data.participants.some(p=>p.name==='Alice'));assert.ok(r.data.messages.some(m=>m.displayName==='Bob'));
- assert.equal((await presence(crypto.randomUUID(),'Alice')).status,200);r=await req('/api/rooms/team/messages');assert.ok(r.data.participants.some(p=>p.name==='Alice'&&p.online));assert.equal(r.data.events.filter(e=>e.displayName==='Alice').length,1);
+ assert.equal((await presence(crypto.randomUUID(),'Alice')).status,200);r=await req('/api/rooms/team/messages');assert.ok(r.data.participants.some(p=>p.name==='Alice'&&p.online));assert.equal(r.data.events.length,0);
  await db.prepare('UPDATE chat_sessions SET seen=? WHERE room=? AND name=?').bind(Date.now()-200000,'team','Bob').run();
- await presence(crypto.randomUUID(),'Carol');r=await req('/api/rooms/team/messages');assert.ok(r.data.events.some(e=>e.displayName==='Bob'&&e.body.includes('left')));
+ await presence(crypto.randomUUID(),'Carol');r=await req('/api/rooms/team/messages');assert.equal(r.data.events.length,0);assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM chat_events').first()).n,0);
  const storedColor=r.data.messages.find(m=>m.displayName==='Bob').authorColor;assert.match(storedColor,/^#[0-9a-f]{6}$/i);await req('/api/rooms/team/messages','POST',{displayName:'Different',body:'new author'});const recolored=await req('/api/rooms/team/messages');assert.equal(recolored.data.messages.find(m=>m.displayName==='Bob').authorColor,storedColor);r=recolored;
  const count=r.data.events.length;await presence(bob,'Bob','heartbeat');r=await req('/api/rooms/team/messages');assert.equal(r.data.events.length,count);
  const admin=await req('/api/admin/messages','GET',null,true);assert.ok(admin.data.rooms[0].participants.some(p=>p.name==='Carol'&&p.online));
- console.log('PASS: historical import, shared-name/multi-tab presence, join/leave notices, unauthorized removal, targeted deletion, full refreshed history, revoked heartbeat, free rejoin, timeout deduplication, admin list');
+ console.log('PASS: historical import, shared-name/multi-tab presence, silent presence, unauthorized removal, targeted deletion, full refreshed history, revoked heartbeat, free rejoin, timeout deduplication, admin list');
 }finally{await mf.dispose();}

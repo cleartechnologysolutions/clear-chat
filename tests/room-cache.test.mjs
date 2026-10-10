@@ -5,11 +5,11 @@ const modules={'./rooms':{ensureRooms:async()=>{},roomExists:async()=>true},'./a
 const context={exports:{},require:name=>modules[name],Response,Request,URL,Date:Clock,console:{error(){}}};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('worker/room-cache.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,context);
 const cache=new context.exports.RoomCache(db),request=new Request('https://internal/internal/cache?room=team');
-assert.equal((await cache.fetch(request)).status,200);assert.equal(reads,2);
+assert.equal((await cache.fetch(request)).status,200);assert.equal(reads,1);
 for(let i=0;i<100;i++)assert.equal((await cache.fetch(request)).status,200);
-assert.equal(reads,2,'100 unchanged polls must issue no new message/event reads');
-await cache.fetch(new Request(request,{method:'DELETE'}));await cache.fetch(request);assert.equal(reads,4,'writes invalidate cache');
-now+=30001;await cache.fetch(request);assert.equal(reads,6,'expiry reconciles missed invalidation');
+assert.equal(reads,1,'100 unchanged polls must issue no new message/event reads');
+await cache.fetch(new Request(request,{method:'DELETE'}));await cache.fetch(request);assert.equal(reads,2,'writes invalidate cache');
+now+=30001;await cache.fetch(request);assert.equal(reads,3,'expiry reconciles missed invalidation');
 now+=30001;fail=true;assert.equal((await cache.fetch(request)).status,503);const failedReads=reads;
 for(let i=0;i<100;i++)assert.equal((await cache.fetch(request)).status,503);
 assert.equal(reads,failedReads,'quota failure must back off shared database retries');

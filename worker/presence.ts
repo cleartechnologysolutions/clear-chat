@@ -5,16 +5,8 @@ export async function presenceList(db:D1Database, room:string) {
   return rows.results.map(p=>({name:p.name,online:p.last_seen>Date.now()-ONLINE_MS,lastSeen:p.last_seen}));
 }
 export async function expirePresence(db:D1Database, room:string) {
-  const stale=await db.prepare('SELECT DISTINCT name FROM chat_sessions WHERE room=? AND removed=0 AND seen<=?').bind(room,Date.now()-ONLINE_MS).all<{name:string}>();
   await db.prepare('DELETE FROM chat_sessions WHERE room=? AND seen<=? AND removed=0').bind(room,Date.now()-ONLINE_MS).run();
-  for(const {name} of stale.results) {
-    const live=await db.prepare('SELECT id FROM chat_sessions WHERE room=? AND name=? AND removed=0 AND seen>? LIMIT 1').bind(room,name,Date.now()-ONLINE_MS).first();
-    if(!live) await event(db,room,name,'left');
-  }
   await db.prepare('DELETE FROM chat_sessions WHERE room=? AND removed=1 AND seen<?').bind(room,Date.now()-86400000).run();
-}
-async function event(db:D1Database,room:string,name:string,kind:string) {
-  await db.prepare('INSERT INTO chat_events(room,name,kind,created_at) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM chat_rooms WHERE slug=? AND active=1)').bind(room,name,kind,Date.now(),room).run();
 }
 export async function handlePresence(state:DurableObjectState,db:D1Database,request:Request) {
  return state.blockConcurrencyWhile(async()=>{
@@ -39,16 +31,14 @@ export async function handlePresence(state:DurableObjectState,db:D1Database,requ
   if(action==='leave') {
     await db.prepare('DELETE FROM chat_sessions WHERE room=? AND id=?').bind(room,id).run();
     const other=await db.prepare('SELECT id FROM chat_sessions WHERE room=? AND name=? AND removed=0 LIMIT 1').bind(room,name).first();
-    if(existing&&!other){await db.prepare('UPDATE chat_participants SET last_seen=0 WHERE room=? AND name=?').bind(room,name).run();await event(db,room,name,'left');}
+    if(existing&&!other){await db.prepare('UPDATE chat_participants SET last_seen=0 WHERE room=? AND name=?').bind(room,name).run();}
   } else {
     // Heartbeats never resurrect sessions removed by admin or expired while asleep.
     if(!existing&&action!=='join')return Response.json({rejoin:true});
-    const online=existing || await db.prepare('SELECT id FROM chat_sessions WHERE room=? AND name=? AND removed=0 LIMIT 1').bind(room,name).first();
     await db.batch([
       db.prepare('INSERT INTO chat_sessions(room,id,name,seen) VALUES(?,?,?,?) ON CONFLICT(room,id) DO UPDATE SET seen=excluded.seen').bind(room,id,name,Date.now()),
       db.prepare('INSERT INTO chat_participants(room,name,last_seen) VALUES(?,?,?) ON CONFLICT(room,name) DO UPDATE SET last_seen=excluded.last_seen').bind(room,name,Date.now())
     ]);
-    if(!online)await event(db,room,name,'joined');
   }
   await state.storage.put('presenceRoom',room);await state.storage.setAlarm(Date.now()+ONLINE_MS);
   return Response.json({ok:true});

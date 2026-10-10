@@ -18,10 +18,9 @@ export class RoomCache {
    await ensureRooms(this.db);
    if(!await roomExists(this.db,room))return Response.json({error:'Room unavailable. Ask the admin for an existing room link.'},{status:404,headers});
    const rows=await this.db.prepare('SELECT * FROM messages WHERE room_slug=? ORDER BY id DESC LIMIT 100').bind(room).all<{id:number;room_slug:string;display_name:string;body:string;image_key:string|null;created_at:number}>();
-   const events=await this.db.prepare('SELECT * FROM chat_events WHERE room=? ORDER BY id DESC LIMIT 100').bind(room).all<{id:number;name:string;kind:string;created_at:number}>();
    const participants=await presenceList(this.db,room);
    const colors=await colorsFor(this.db,[...rows.results.slice().reverse().map(m=>m.display_name),...participants.map(p=>p.name)]);
-   this.value={room,participants:participants.map(p=>({...p,authorColor:colors.get(p.name.trim().toLowerCase())})),events:events.results.map(e=>({id:-e.id,displayName:e.name,body:`${e.name} ${e.kind} the chat.`,kind:'system',createdAt:new Date(e.created_at).toISOString()})),messages:rows.results.reverse().map(m=>({id:m.id,roomSlug:room,displayName:m.display_name,authorColor:colors.get(m.display_name.trim().toLowerCase()),body:m.body,imageUrl:m.image_key?`/api/rooms/${room}/images/${m.id}`:null,createdAt:new Date(m.created_at).toISOString()}))};
+   this.value={room,participants:participants.map(p=>({...p,authorColor:colors.get(p.name.trim().toLowerCase())})),events:[],messages:rows.results.reverse().map(m=>({id:m.id,roomSlug:room,displayName:m.display_name,authorColor:colors.get(m.display_name.trim().toLowerCase()),body:m.body,imageUrl:m.image_key?`/api/rooms/${room}/images/${m.id}`:null,createdAt:new Date(m.created_at).toISOString()}))};
    this.expires=Date.now()+30000;return Response.json(this.value,{headers});
   }catch(error){
    console.error('Room cache refresh failed',error);this.retryAt=Date.now()+60000;

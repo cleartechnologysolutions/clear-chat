@@ -16,9 +16,9 @@ const source=fs.readFileSync('app/chat-room.tsx','utf8');const notify=source.sli
 const notifications=[];function Notification(title,opts){notifications.push({title,...opts})}Notification.permission='granted';
 const nctx={notifyRef:{current:true},document:{visibilityState:'hidden',title:'Chat'},loadedSlugRef:{current:'team'},Notification,window:{Notification,setTimeout(){}}};
 vm.runInNewContext(ts.transpileModule(notify,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,nctx);
-nctx.flashNotification({kind:'system',displayName:'Alicia',body:'Alicia left the chat.'});assert.equal(notifications[0].body,'Alicia left the chat.');assert.equal(notifications[0].title,'Chat activity');
-nctx.flashNotification({displayName:'Adam',body:'Hi'});assert.equal(notifications[1].title,'New chat message');
-console.log('PASS: hidden heartbeat, no tab-switch leave/join, close beacon, in-flight visibility race, cleanup and actual join/leave notification content');
+nctx.flashNotification({kind:'system',displayName:'Alicia',body:'Alicia left the chat.'});assert.equal(notifications.length,0);
+nctx.flashNotification({displayName:'Adam',body:'Hi'});assert.equal(notifications[0].title,'New chat message');
+console.log('PASS: hidden heartbeat, no tab-switch leave/join, close beacon, in-flight visibility race, cleanup and suppressed presence alerts and retained message notifications');
 const begin=source.indexOf('  const loadMessages = useCallback'),end=source.indexOf('\n  usePresence(',begin);
 let deadline,attempt=0;const statuses=[];
 const ref=v=>({current:v});const pctx={retryReadAt:ref(0),useCallback:f=>f,cleanSlug:x=>x,polling:ref(false),sendingRef:ref(false),roomRequest:ref(1),activeRead:ref(null),loadedSlugRef:ref('team'),followBottom:ref(false),fetchedId:ref(0),seenIds:ref(new Set()),AbortController,setTimeout:f=>(deadline=f,1),clearTimeout(){},setStatus:s=>statuses.push(s),setLoadedSlug(){},setMessages(){},setParticipants(){},setSlug(){},sound:{play(){}},flashNotification(){},fetch:async(u,o)=>{attempt++;if(attempt===1)return new Promise((_,reject)=>o.signal.addEventListener('abort',()=>reject(Error('aborted'))));return {ok:true,json:async()=>({messages:[],events:[],participants:[]})};}};
